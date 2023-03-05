@@ -34,13 +34,9 @@ def all_simulation_params(layer, cells, waveform_type, directions, positions,
     for i, cell in enumerate(cells):
         for j in range(rotation_count):
             rotations = azimuthal_rotation + j * rotation_step
-            k = 0
-            for direction in directions:
-                for position in positions:
-                    for rotation in rotations:
-                        idx = (i, j, k)
-                        k += 1
-                        yield idx, cell, waveform_type, direction, position, rotation, layer 
+            for k, (direction, position, rotation) in enumerate(zip(directions, positions, rotations)):
+                idx = (i, j, k)
+                yield idx, cell, waveform_type, direction, position, rotation, layer 
 
 
 def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCell],
@@ -74,13 +70,13 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     directions = layer.get_smoothed_normals()
     positions = layer.surface.elements_baricenters().value[layer.elements]
 
-    total_sims = len(cells) * rotation_count * directions.shape[0] * positions.shape[0] * azimuthal_rotation.shape[0]
+    total_sims = len(cells) * rotation_count * azimuthal_rotation.shape[0]
 
     all_params = all_simulation_params(layer, cells, waveform_type, directions, positions,
                                        rotation_count, rotation_step, azimuthal_rotation)
     
-    layer_results = np.empty((len(cells), rotation_count, total_sims), dtype=np.float64)
-    layer_tags = np.empty((len(cells), rotation_count, total_sims), dtype=np.int32)
+    layer_results = np.empty((len(cells), rotation_count, azimuthal_rotation.shape[0]), dtype=np.float64)
+    layer_tags = np.empty((len(cells), rotation_count, azimuthal_rotation.shape[0]), dtype=np.int32)
     
     if RANK == 0:
         _master(total_sims, layer_results, layer_tags)
@@ -131,10 +127,10 @@ def _master(n_parameter_sets, threshes, tags):
         COMM.Recv([param_id, MPI.INT32_T], source=s.source)
         COMM.Recv([local_rec_thresh, MPI.DOUBLE], source=s.source,
                   tag=COMPUTE_TAG)
-        threshes[param_id] = local_rec_thresh
+        threshes[tuple(param_id)] = local_rec_thresh
         COMM.Recv([local_rec_tag, MPI.INT32_T], source=s.source,
                   tag=COMPUTE_TAG)
-        tags[param_id] = local_rec_tag
+        tags[tuple(param_id)] = local_rec_tag
         if deploy < n_parameter_sets - 1:
             deploy += 1
             COMM.Send([deploy, MPI.INT], dest=s.source)

@@ -74,7 +74,7 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     directions = layer.get_smoothed_normals()
     positions = layer.surface.elements_baricenters().value[layer.elements]
 
-    total_sims = len(cells) * rotation_count * directions.size[0] * positions.size[0] * azimuthal_rotation.size[0]
+    total_sims = len(cells) * rotation_count * directions.shape[0] * positions.shape[0] * azimuthal_rotation.shape[0]
 
     all_params = all_simulation_params(layer, cells, waveform_type, directions, positions,
                                        rotation_count, rotation_step, azimuthal_rotation)

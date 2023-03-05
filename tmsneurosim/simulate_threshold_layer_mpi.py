@@ -215,8 +215,9 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
     transformed_e_field = azimuthal_rotation.inv().apply(rotation.inv().apply(e_field_at_cell))
 
     simulation.apply_e_field(transformed_e_field)
+    threshold = simulation.find_threshold_factor()
     simulation.detach()
-    return simulation.find_threshold_factor(), int(''.join(map(str, np.unique(tetrahedron_tags)))[::-1])
+    return threshold, int(''.join(map(str, np.unique(tetrahedron_tags)))[::-1])
 
 
 def rotation_from_vectors(vec1: NDArray[np.float64], vec2: NDArray[np.float64]) -> Rotation:

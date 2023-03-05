@@ -96,8 +96,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
             for j in range(rotation_count):
                 res = layer_results[i, j]
                 tag = layer_tags[i, j]
-                layer.add_selected_elements_field(res, f'{cell.__class__.__name__}_{cell.morphology_id}__{i}')
-                layer.add_selected_elements_field(tag, f'{cell.__class__.__name__}_{cell.morphology_id}_{i}_tags')
+                layer.add_selected_elements_field(res, f'{cell.__class__.__name__}_{cell.morphology_id}__{j}')
+                layer.add_selected_elements_field(tag, f'{cell.__class__.__name__}_{cell.morphology_id}_{j}_tags')
 
 
         if len(layer_meta_info) > 1:

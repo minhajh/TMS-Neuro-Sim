@@ -74,7 +74,7 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     directions = layer.get_smoothed_normals()
     positions = layer.surface.elements_baricenters().value[layer.elements]
 
-    total_sims = len(cells) * rotation_count * len(directions) * len(positions) * len(azimuthal_rotation)
+    total_sims = len(cells) * rotation_count * directions.size[0] * positions.size[0] * azimuthal_rotation.size[0]
 
     all_params = all_simulation_params(layer, cells, waveform_type, directions, positions,
                                        rotation_count, rotation_step, azimuthal_rotation)
@@ -131,10 +131,10 @@ def _master(n_parameter_sets, threshes, tags):
         COMM.Recv([param_id, MPI.INT32_T], source=s.source)
         COMM.Recv([local_rec_thresh, MPI.DOUBLE], source=s.source,
                   tag=COMPUTE_TAG)
-        threshes[param_id, :] = local_rec_thresh
+        threshes[param_id] = local_rec_thresh
         COMM.Recv([local_rec_tag, MPI.INT32_T], source=s.source,
                   tag=COMPUTE_TAG)
-        tags[param_id, :] = local_rec_tag
+        tags[param_id] = local_rec_tag
         if deploy < n_parameter_sets - 1:
             deploy += 1
             COMM.Send([deploy, MPI.INT], dest=s.source)

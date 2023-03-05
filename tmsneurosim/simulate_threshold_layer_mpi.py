@@ -3,6 +3,7 @@ import logging
 import math
 import multiprocessing
 import time
+import contextlib
 from typing import Tuple, List
 
 import numpy as np
@@ -66,6 +67,7 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     for cell in cells:
         for i in range(rotation_count):
             layer_meta_info.append((cell, i))
+
 
     directions = layer.get_smoothed_normals()
     positions = layer.surface.elements_baricenters().value[layer.elements]

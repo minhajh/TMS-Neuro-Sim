@@ -1,5 +1,7 @@
 import logging
 import math
+import contextlib
+import os
 
 import numpy as np
 import simnibs
@@ -8,6 +10,7 @@ from scipy.interpolate import LinearNDInterpolator
 from simnibs.mesh_tools import mesh_io
 from simnibs.segmentation.marching_cube import marching_cubes_lewiner
 from tqdm import tqdm
+from mpi4py import MPI
 
 from tmsneurosim.nrn.cells import NeuronCell
 
@@ -24,6 +27,8 @@ SKULL_SURFACE = 1004
 SKIN_SURFACE = 1005
 
 POINTS_PER_MM = 3
+
+size = MPI.COMM_WORLD.size
 
 
 def crop_box(mesh: simnibs.Msh, roi: [float], keep_elements: bool = False) -> simnibs.Msh:
@@ -443,7 +448,11 @@ class CorticalLayer:
         centers = self.surface.elements_baricenters().value
         min_distance_square = (1 / elements_per_square_mm) * math.sqrt(2) / 2
         selected_elements = np.array([0])
-        for element_index in tqdm(range(self.surface.elm.nr)):
+        if size > 1:
+            pbar = range(self.surface.elm.nr)
+        else:
+            pbar = tqdm(range(self.surface.elm.nr))
+        for element_index in pbar:
             selected_elements_centers = centers[selected_elements]
             element_center = centers[element_index]
             distances_square = (selected_elements_centers[:, 0] - element_center[0]) ** 2 + \
@@ -470,7 +479,11 @@ class CorticalLayer:
         centers = self.surface.elements_baricenters().value
         element_values = np.array(values)
         nearest_interpolation_values = np.zeros(self.surface.elm.nr)
-        for element_index in tqdm(range(self.surface.elm.nr)):
+        if size > 1:
+            pbar = range(self.surface.elm.nr)
+        else:
+            pbar = tqdm(range(self.surface.elm.nr))
+        for element_index in pbar:
             elements_centers = centers[self.elements]
             element_center = centers[element_index]
             distances_square = (elements_centers[:, 0] - element_center[0]) ** 2 + \

@@ -157,3 +157,11 @@ crashlytics-build.properties
 fabric.properties
 
 
+tmsneurosim/nrn/mechanisms/*.c
+tmsneurosim/nrn/mechanisms/*.o
+
+nrnmech.dll
+
+sim_test.py
+tests/
+m2m*

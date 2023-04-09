@@ -651,7 +651,8 @@ class NeuronCell:
         self._setup_xtra()
 
     def display_2d_matplotlib(self, path=None, include_diameter=False, rotated_90=False,
-                              plot_grid=True, background_transparent=False, y_range=None) -> None:
+                              plot_grid=True, background_transparent=False, y_range=None,
+                              node_index_emphasis=None) -> None:
         """
         Displays the cell in 2d using matplotlib.
         :param path: Path to save the plot to. If None: shows plot blocking.
@@ -668,7 +669,9 @@ class NeuronCell:
 
         color = {'soma': [0, 0, 0, 1], 'axon': [0.8, 0, 0, 1], 'Myelin': [0.8, 0.6, 0, 1], 'Node': [0, 0, 0.8, 1],
                  'Unmyelin': [0.8, 0, 0, 1], 'dend': [0.25, 0.75, 0, 1], 'apic': [0.75, 0, 0.75, 1]}
-
+        if node_index_emphasis is not None:
+            emphasis_sections = self.node + self.unmyelin
+            emphasis_sections = [emphasis_sections[i] for i in node_index_emphasis]
         if rotated_90:
             z_sorted_sections = sorted(self.all, key=lambda sec: sec(0.5).x_xtra)
         else:
@@ -679,56 +682,63 @@ class NeuronCell:
             y_coordinates = []
             diameter = []
             section_type = section.name().split('.')[-1].split('[')[0]
-
-            if section_type == 'soma':
-                if rotated_90:
-                    if include_diameter:
-                        soma_circle = plt.Circle((self.soma[0](0.5).y_xtra, self.soma[0](0.5).z_xtra),
-                                                 self.soma[0].L / 2,
-                                                 color=color[section_type], zorder=i)
+            if section_type in ['soma', 'axon', 'Myelin', 'Node', 'Unmyelin']:
+                if section_type == 'soma':
+                    if rotated_90:
+                        if include_diameter:
+                            soma_circle = plt.Circle((self.soma[0](0.5).y_xtra, self.soma[0](0.5).z_xtra),
+                                                    self.soma[0].L / 2,
+                                                    color=color[section_type], zorder=i)
+                        else:
+                            soma_circle = plt.Circle((self.soma[0](0.5).y_xtra, self.soma[0](0.5).z_xtra),
+                                                    30,
+                                                    color=color[section_type], zorder=i)
                     else:
-                        soma_circle = plt.Circle((self.soma[0](0.5).y_xtra, self.soma[0](0.5).z_xtra),
-                                                 30,
-                                                 color=color[section_type], zorder=i)
-                else:
-                    if include_diameter:
-                        soma_circle = plt.Circle((self.soma[0](0.5).x_xtra, self.soma[0](0.5).z_xtra),
-                                                 self.soma[0].L / 2,
-                                                 color=color[section_type], zorder=i)
-                    else:
-                        soma_circle = plt.Circle((self.soma[0](0.5).x_xtra, self.soma[0](0.5).z_xtra),
-                                                 30,
-                                                 color=color[section_type], zorder=i)
-                plt.gca().add_patch(soma_circle)
-                continue
+                        if include_diameter:
+                            soma_circle = plt.Circle((self.soma[0](0.5).x_xtra, self.soma[0](0.5).z_xtra),
+                                                    self.soma[0].L / 2,
+                                                    color=color[section_type], zorder=i)
+                        else:
+                            soma_circle = plt.Circle((self.soma[0](0.5).x_xtra, self.soma[0](0.5).z_xtra),
+                                                    30,
+                                                    color=color[section_type], zorder=i)
+                    plt.gca().add_patch(soma_circle)
+                    continue
 
-            for point_index in range(section.n3d()):
-                if rotated_90:
-                    x_coordinates.append(section.y3d(point_index))
+                for point_index in range(section.n3d()):
+                    if rotated_90:
+                        x_coordinates.append(section.y3d(point_index))
+                    else:
+                        x_coordinates.append(section.x3d(point_index))
+                    y_coordinates.append(section.z3d(point_index))
+                    diameter.append(section.diam3d(point_index))
+                if include_diameter:
+                    for point_index in range(section.n3d() - 1):
+                        ortogonal = np.array([x_coordinates[point_index + 1], y_coordinates[point_index + 1]]) - np.array(
+                            [x_coordinates[point_index], y_coordinates[point_index]])
+                        ortogonal = np.array([ortogonal[1], -ortogonal[0]])
+                        if np.linalg.norm(ortogonal) == 0:
+                            ortogonal = np.array([0, 1])
+                        ortogonal = ortogonal / np.linalg.norm(ortogonal)
+                        s1 = np.array([x_coordinates[point_index], y_coordinates[point_index]]) + ortogonal * (
+                                diameter[point_index] / 2)
+                        s2 = np.array([x_coordinates[point_index], y_coordinates[point_index]]) + ortogonal * -(
+                                diameter[point_index] / 2)
+                        e1 = np.array([x_coordinates[point_index + 1], y_coordinates[point_index + 1]]) + ortogonal * (
+                                diameter[point_index + 1] / 2)
+                        e2 = np.array([x_coordinates[point_index + 1], y_coordinates[point_index + 1]]) + ortogonal * -(
+                                diameter[point_index + 1] / 2)
+                        polygon = plt.Polygon([s1, s2, e2, e1], True, facecolor=color[section_type], zorder=i)
+                        plt.gca().add_patch(polygon)
+                    if node_index_emphasis is not None:
+                        if section in emphasis_sections:
+                            plt.plot(x_coordinates, y_coordinates,  marker='*', c='red', lw=3)
                 else:
-                    x_coordinates.append(section.x3d(point_index))
-                y_coordinates.append(section.z3d(point_index))
-                diameter.append(section.diam3d(point_index))
-            if include_diameter:
-                for point_index in range(section.n3d() - 1):
-                    ortogonal = np.array([x_coordinates[point_index + 1], y_coordinates[point_index + 1]]) - np.array(
-                        [x_coordinates[point_index], y_coordinates[point_index]])
-                    ortogonal = np.array([ortogonal[1], -ortogonal[0]])
-                    if np.linalg.norm(ortogonal) == 0:
-                        ortogonal = np.array([0, 1])
-                    ortogonal = ortogonal / np.linalg.norm(ortogonal)
-                    s1 = np.array([x_coordinates[point_index], y_coordinates[point_index]]) + ortogonal * (
-                            diameter[point_index] / 2)
-                    s2 = np.array([x_coordinates[point_index], y_coordinates[point_index]]) + ortogonal * -(
-                            diameter[point_index] / 2)
-                    e1 = np.array([x_coordinates[point_index + 1], y_coordinates[point_index + 1]]) + ortogonal * (
-                            diameter[point_index + 1] / 2)
-                    e2 = np.array([x_coordinates[point_index + 1], y_coordinates[point_index + 1]]) + ortogonal * -(
-                            diameter[point_index + 1] / 2)
-                    polygon = plt.Polygon([s1, s2, e2, e1], True, facecolor=color[section_type], zorder=i)
-                    plt.gca().add_patch(polygon)
-            else:
-                plt.plot(x_coordinates, y_coordinates, c=color[section.name().split('.')[-1].split('[')[0]], lw=3)
+                    plt.plot(x_coordinates, y_coordinates, c=color[section.name().split('.')[-1].split('[')[0]], lw=3)
+                    if node_index_emphasis is not None:
+                        if section in emphasis_sections:
+                            plt.plot(x_coordinates, y_coordinates,  marker='*', c='red', lw=3)
+
         legend_lines = [Line2D([0], [0], marker='o', color='w', markerfacecolor=color['soma'], markersize=10),
                         Line2D([0], [0], color=color['Myelin'], lw=2),
                         Line2D([0], [0], color=color['Node'], lw=2),
@@ -828,3 +838,6 @@ class NeuronCell:
                     f.write(f'\tendloop\n')
                     f.write(f'endfacet\n')
                 f.write(f'endsolid {triangles}\n')
+
+    def __str__(self) -> str:
+        return f'{self.__class__.__name__}_{self.morphology_id}'

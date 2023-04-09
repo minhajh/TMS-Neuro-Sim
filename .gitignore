@@ -163,5 +163,7 @@ tmsneurosim/nrn/mechanisms/*.o
 nrnmech.dll
 
 sim_test.py
+sim_test_mpi.py
+nrn_output/
 tests/
 m2m*

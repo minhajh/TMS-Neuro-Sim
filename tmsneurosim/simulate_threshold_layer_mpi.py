@@ -5,6 +5,7 @@ import multiprocessing
 import time
 import contextlib
 from typing import Tuple, List
+import pickle
 
 import numpy as np
 import simnibs
@@ -12,6 +13,7 @@ from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from tqdm import tqdm
 from mpi4py import MPI
+from neuron import h
 
 from tmsneurosim.cortical_layer import CorticalLayer
 from tmsneurosim.nrn.cells import NeuronCell
@@ -42,7 +44,8 @@ def all_simulation_params(layer, cells, waveform_type, directions, positions,
 
 def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCell],
                                       waveform_type: WaveformType, rotation_count: int,
-                                      rotation_step: int, initial_rotation: int = None) -> simnibs.Msh:
+                                      rotation_step: int, initial_rotation: int = None,
+                                      record=False, directory=None) -> simnibs.Msh:
     """
     Simulates the threshold of each neuron at each simulation element with all azimuthal rotations.
     :param layer: The cortical layer to place the neurons on.
@@ -83,7 +86,7 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     if RANK == 0:
         _master(total_sims, layer_results, layer_tags)
     else:
-        _worker(all_params)
+        _worker(all_params, record=record, directory=directory)
 
     COMM.barrier()
 
@@ -142,7 +145,7 @@ def _master(n_parameter_sets, threshes, tags):
         complete += 1
 
 
-def _worker(params):
+def _worker(params, record=False, directory=None):
     deploy = np.empty(1, dtype='i')
     counter = -1
     gen = params
@@ -161,7 +164,10 @@ def _worker(params):
             counter += 1
         
         idx, cell, waveform_type, direction, position, rotation, layer = r
-        threshold, tag = calculate_cell_threshold(cell, waveform_type, direction, position, rotation, layer)
+        threshold, tag = calculate_cell_threshold(cell, waveform_type, direction,
+                                                  position, rotation, layer,
+                                                  record=record, idx=counter,
+                                                  directory=directory)
         gc.collect()
         local_rec_thresh[:] = threshold
         local_rec_tag[:] = tag
@@ -191,7 +197,8 @@ def _distribute_initial_jobs(n: int, deploy: np.ndarray):
 
 def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
                              direction: NDArray[np.float64], position: NDArray[np.float64],
-                             azimuthal_rotation: float, layer: CorticalLayer) -> Tuple[float, int]:
+                             azimuthal_rotation: float, layer: CorticalLayer, record=False,
+                             idx=None, directory=None) -> Tuple[float, int]:
     if np.any(np.isnan(direction)) or np.any(np.isnan(position)):
         return np.nan, 0
     cell.load()
@@ -214,6 +221,35 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
 
     simulation.apply_e_field(transformed_e_field)
     threshold = simulation.find_threshold_factor()
+
+    if record:
+        secs = cell.node + cell.unmyelin
+        v_records = []
+        e_records = []
+        es = [sec(0.5).es_xtra for sec in secs]
+        area = [sec(0.5).area() for sec in secs]
+        for sec in secs:
+            v_record = h.Vector()
+            v_record.record(sec(0.5)._ref_v)
+            v_records.append(v_record)
+            e_record = h.Vector()
+            e_record.record(sec(0.5)._ref_e_extracellular)
+            e_records.append(e_record)
+        simulation.simulate(threshold, reinit=True)
+        v_rec = np.vstack([np.array(v) for v in v_records])
+        sec_inds, t_inds = np.where(np.diff(np.signbit(v_rec), axis=1))
+        initiate_ind = sec_inds[np.argmin(t_inds)]
+        data = {
+            'v_rec': v_rec,
+            'e_rec': np.vstack([np.array(e) for e in e_records]),
+            'es': es,
+            'threshold': threshold,
+            'area': area,
+            'initiate_ind': initiate_ind
+        }
+        with open(f'{directory}/{cell}_{idx}', 'wb') as f:
+            pickle.dump(data, f)
+            
     simulation.detach()
     return threshold, int(''.join(map(str, np.unique(tetrahedron_tags)))[::-1])
 

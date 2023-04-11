@@ -1,9 +1,5 @@
 import gc
-import logging
-import math
-import multiprocessing
-import time
-import contextlib
+import os
 from typing import Tuple, List
 import pickle
 
@@ -166,7 +162,7 @@ def _worker(params, record=False, directory=None):
         idx, cell, waveform_type, direction, position, rotation, layer = r
         threshold, tag = calculate_cell_threshold(cell, waveform_type, direction,
                                                   position, rotation, layer,
-                                                  record=record, idx=counter,
+                                                  record=record, idx=idx,
                                                   directory=directory)
         gc.collect()
         local_rec_thresh[:] = threshold
@@ -225,29 +221,34 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
     if record:
         secs = cell.node + cell.unmyelin
         v_records = []
-        e_records = []
+        # e_records = []
+        soma_record = h.Vector()
+        soma_record.record(cell.soma[0](0.5)._ref_v)
         es = [sec(0.5).es_xtra for sec in secs]
         area = [sec(0.5).area() for sec in secs]
         for sec in secs:
             v_record = h.Vector()
             v_record.record(sec(0.5)._ref_v)
             v_records.append(v_record)
-            e_record = h.Vector()
-            e_record.record(sec(0.5)._ref_e_extracellular)
-            e_records.append(e_record)
+            # e_record = h.Vector()
+            # e_record.record(sec(0.5)._ref_e_extracellular)
+            # e_records.append(e_record)
         simulation.simulate(threshold, reinit=True)
         v_rec = np.vstack([np.array(v) for v in v_records])
         sec_inds, t_inds = np.where(np.diff(np.signbit(v_rec), axis=1))
         initiate_ind = sec_inds[np.argmin(t_inds)]
         data = {
             'v_rec': v_rec,
-            'e_rec': np.vstack([np.array(e) for e in e_records]),
+            'soma_rec': np.array(soma_record),
             'es': es,
             'threshold': threshold,
             'area': area,
             'initiate_ind': initiate_ind
         }
-        with open(f'{directory}/{cell}_{idx}', 'wb') as f:
+        i, j, k = idx
+        filename = f"{directory}/{cell.__class__.__name__}/{cell.morphology_id:02d}/{j:02d}/{k:05d}.pkl"
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        with open(filename, 'wb') as f:
             pickle.dump(data, f)
             
     simulation.detach()

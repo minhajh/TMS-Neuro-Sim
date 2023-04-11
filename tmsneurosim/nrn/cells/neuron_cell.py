@@ -840,4 +840,4 @@ class NeuronCell:
                 f.write(f'endsolid {triangles}\n')
 
     def __str__(self) -> str:
-        return f'{self.__class__.__name__}_{self.morphology_id}'
+        return f'{self.__class__.__name__}({self.morphology_id})'

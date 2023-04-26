@@ -194,7 +194,7 @@ def _distribute_initial_jobs(n: int, deploy: np.ndarray):
 def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
                              direction: NDArray[np.float64], position: NDArray[np.float64],
                              azimuthal_rotation: float, layer: CorticalLayer, record=False,
-                             idx=None, directory=None) -> Tuple[float, int]:
+                             idx=None, directory=None, amp_scale_range=None) -> Tuple[float, int]:
     if np.any(np.isnan(direction)) or np.any(np.isnan(position)):
         return np.nan, 0
     cell.load()
@@ -222,12 +222,16 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
         secs = cell.node + cell.unmyelin
         v_records = []
         e_records = []
+
         soma_record = h.Vector()
         soma_record.record(cell.soma[0](0.5)._ref_v)
+
         axon_0 = h.Vector()
         axon_0.record(cell.axon[0](0.5)._ref_v)
+
         es = [sec(0.5).es_xtra for sec in secs]
         area = [sec(0.5).area() for sec in secs]
+
         for sec in secs:
             v_record = h.Vector()
             v_record.record(sec(0.5)._ref_v)
@@ -235,14 +239,30 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
             e_record = h.Vector()
             e_record.record(sec(0.5)._ref_e_extracellular)
             e_records.append(e_record)
+
         simulation.simulate(threshold, reinit=True)
         v_rec = np.vstack([np.array(v) for v in v_records])
         e_rec = np.vstack([np.array(e) for e in e_records])
+
         sec_inds, t_inds = np.where(np.diff(np.signbit(v_rec), axis=1))
-        initiate_ind = sec_inds[np.argmin(t_inds)]
+        t_min_loc = np.where(t_inds==t_inds.min())[0]
+        initiate_inds = sec_inds[t_min_loc]
+        t_min = t_inds.min()
+        if len(initiate_inds) > 1:
+            initiate_ind = None
+            t_test = np.inf
+            for iind in initiate_inds:
+                dv = v_rec[iind][t_min+1] - v_rec[iind][t_min-1]
+                t_pred = -v_rec[iind][t_min] / dv
+                if t_pred < t_test:
+                    initiate_ind = iind
+                    t_test = t_pred
+        else:
+            initiate_ind = initiate_inds[0]
+
         data = {
-            'v_rec': v_rec,
-            'e_rec': e_rec,
+            'v_rec_thresh': v_rec,
+            'e_rec_thresh': e_rec,
             'soma_rec': np.array(soma_record),
             'axon_0': np.array(axon_0),
             'es': np.array(es),
@@ -250,11 +270,22 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
             'area': area,
             'initiate_ind': initiate_ind
         }
+
         i, j, k = idx
         save_dir = f"{directory}/{cell.__class__.__name__}/{cell.morphology_id:02d}/{j:02d}/{k:05d}/"
         os.makedirs(save_dir, exist_ok=True)
         for k, v in data.items():
             np.save(save_dir+k, v)
+
+        if amp_scale_range is not None:
+            for scale in amp_scale_range:
+                simulation.simulate(threshold*scale, reinit=True)
+                v_rec = np.vstack([np.array(v) for v in v_records])
+                e_rec = np.vstack([np.array(e) for e in e_records])
+                v_name = f'v_rec_thresh_{scale}'
+                e_name = f'e_rec_thresh_{scale}'
+                np.save(save_dir+v_name, v_rec)
+                np.save(save_dir+e_name, e_rec)
             
     simulation.detach()
     return threshold, int(''.join(map(str, np.unique(tetrahedron_tags)))[::-1])

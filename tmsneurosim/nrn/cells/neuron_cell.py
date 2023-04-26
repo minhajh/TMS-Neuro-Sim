@@ -652,7 +652,7 @@ class NeuronCell:
 
     def display_2d_matplotlib(self, path=None, include_diameter=False, rotated_90=False,
                               plot_grid=True, background_transparent=False, y_range=None,
-                              node_index_emphasis=None) -> None:
+                              node_index_emphasis=None, ignore_dendrites=False) -> None:
         """
         Displays the cell in 2d using matplotlib.
         :param path: Path to save the plot to. If None: shows plot blocking.
@@ -677,12 +677,17 @@ class NeuronCell:
         else:
             z_sorted_sections = sorted(self.all, key=lambda sec: sec(0.5).y_xtra)
 
+        if ignore_dendrites:
+            plot_sections = ['soma', 'axon', 'Myelin', 'Node', 'Unmyelin']
+        else:
+            plot_sections = list(color.keys())
+
         for i, section in enumerate(z_sorted_sections):
             x_coordinates = []
             y_coordinates = []
             diameter = []
             section_type = section.name().split('.')[-1].split('[')[0]
-            if section_type in ['soma', 'axon', 'Myelin', 'Node', 'Unmyelin']:
+            if section_type in plot_sections:
                 if section_type == 'soma':
                     if rotated_90:
                         if include_diameter:

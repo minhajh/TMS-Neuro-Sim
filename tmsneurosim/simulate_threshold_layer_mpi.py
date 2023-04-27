@@ -41,7 +41,7 @@ def all_simulation_params(layer, cells, waveform_type, directions, positions,
 def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCell],
                                       waveform_type: WaveformType, rotation_count: int,
                                       rotation_step: int, initial_rotation: int = None,
-                                      record=False, directory=None) -> simnibs.Msh:
+                                      record=False, directory=None, amp_scale_range=None) -> simnibs.Msh:
     """
     Simulates the threshold of each neuron at each simulation element with all azimuthal rotations.
     :param layer: The cortical layer to place the neurons on.
@@ -82,7 +82,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     if RANK == 0:
         _master(total_sims, layer_results, layer_tags)
     else:
-        _worker(all_params, record=record, directory=directory)
+        _worker(all_params, record=record, directory=directory,
+                amp_scale_range=amp_scale_range)
 
     COMM.barrier()
 
@@ -141,7 +142,7 @@ def _master(n_parameter_sets, threshes, tags):
         complete += 1
 
 
-def _worker(params, record=False, directory=None):
+def _worker(params, record=False, directory=None, amp_scale_range=None):
     deploy = np.empty(1, dtype='i')
     counter = -1
     gen = params
@@ -163,7 +164,8 @@ def _worker(params, record=False, directory=None):
         threshold, tag = calculate_cell_threshold(cell, waveform_type, direction,
                                                   position, rotation, layer,
                                                   record=record, idx=idx,
-                                                  directory=directory)
+                                                  directory=directory,
+                                                  amp_scale_range=amp_scale_range)
         gc.collect()
         local_rec_thresh[:] = threshold
         local_rec_tag[:] = tag

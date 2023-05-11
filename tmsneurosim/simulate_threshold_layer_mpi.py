@@ -255,7 +255,7 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
         else:
             secs = cell.all
         v_records = []
-        e_records = []
+        # e_records = []
 
         soma_record = h.Vector()
         soma_record.record(cell.soma[0](0.5)._ref_v)
@@ -276,7 +276,7 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
 
         simulation.simulate(threshold, reinit=True)
         v_rec = np.vstack([np.array(v) for v in v_records])
-        e_rec = np.vstack([np.array(e) for e in e_records])
+        # e_rec = np.vstack([np.array(e) for e in e_records])
 
         sec_inds_t, t_inds_t = np.where(np.diff(np.signbit(v_rec-v_thresh), axis=1))
         sec_inds = []

@@ -282,7 +282,7 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
         sec_inds = []
         t_inds = []
         for s_ind, t_ind in zip(sec_inds_t, t_inds_t):
-            if np.all(v_rec[s_ind][t_ind+1:t_ind+50] > v_thresh) or t_ind >= 50:
+            if np.all(v_rec[s_ind][t_ind+1:t_ind+50] >= v_thresh) or t_ind >= 50:
                 sec_inds.append(s_ind)
                 t_inds.append(t_ind)
         sec_inds = np.array(sec_inds)

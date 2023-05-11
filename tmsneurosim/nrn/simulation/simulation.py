@@ -47,6 +47,7 @@ class __Backend:
         self._tstop = 1
         self._temp = 37
         self._delay = 0.005
+        self._threshold = 0
 
 
     @property
@@ -58,6 +59,16 @@ class __Backend:
     def dt(self, value):
         """Set dt globally."""
         self._dt = value
+
+    @property
+    def threshold(self):
+        """Global simulation threshold."""
+        return self._threshold
+
+    @threshold.setter
+    def threshold(self, value):
+        """Set threshold globally."""
+        self._threshold = value
 
     @property
     def tstop(self):
@@ -131,6 +142,7 @@ class Simulation:
         self.simulation_temperature = Backend.temp
         self.simulation_time_step = Backend.dt
         self.simulation_duration = Backend.tstop
+        self.simulation_threshold = Backend.threshold
         self.waveform, self.waveform_time = self._load_waveform(waveform_type)
 
         self.init_handler = None
@@ -178,12 +190,26 @@ class Simulation:
         """Initializes spike recording for every segment of the neuron.
         """
         self.netcons = []
+        self.v_recs = []
         for i, section in enumerate(self.neuron_cell.all):
+            if section not in self.neuron_cell.myelin:
+                v = h.Vector()
+                v.record(section(0.5)._ref_v)
+                self.v_recs.append(v)
             for segment in section:
                 recording_netcon = h.NetCon(segment._ref_v, None, sec=section)
-                recording_netcon.threshold = 20
+                recording_netcon.threshold = self.simulation_threshold
                 recording_netcon.record(self._action_potentials, self._action_potentials_recording_ids, i)
                 self.netcons.append(recording_netcon)
+
+    def validate_is_active(self):
+        v_rec = np.vstack([np.array(v) for v in self.v_recs])
+        sec_inds_t, t_inds_t = np.where(np.diff(np.signbit(v_rec-self.simulation_threshold), axis=1))
+        for s_ind, t_ind in zip(sec_inds_t, t_inds_t):
+            if np.all(v_rec[s_ind][t_ind+1:t_ind+50] >= self.simulation_threshold) or t_ind >= 50:
+                return True
+        return False
+
 
     def _load_waveform(self, waveform_type: WaveformType):
         """Loads the submitted waveform and modifies it to fit the simulation settings.

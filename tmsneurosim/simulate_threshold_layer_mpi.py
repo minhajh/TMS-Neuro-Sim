@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from tmsneurosim.cortical_layer import CorticalLayer
 from tmsneurosim.nrn.cells import NeuronCell
 from tmsneurosim.nrn.simulation.e_field_simulation import EFieldSimulation
-from tmsneurosim.nrn.simulation.simulation import WaveformType
+from tmsneurosim.nrn.simulation.simulation import WaveformType, Backend as N
 
 WHITE_MATTER_SURFACE = 1001
 GRAY_MATTER_SURFACE = 1002
@@ -247,7 +247,7 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
     simulation.apply_e_field(transformed_e_field)
     threshold = simulation.find_threshold_factor()
     
-    v_thresh = 0
+    v_thresh = N.threshold
 
     if record:
         if not record_all:

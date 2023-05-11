@@ -246,6 +246,8 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
 
     simulation.apply_e_field(transformed_e_field)
     threshold = simulation.find_threshold_factor()
+    
+    v_thresh = 0
 
     if record:
         if not record_all:
@@ -268,19 +270,19 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
             v_record = h.Vector()
             v_record.record(sec(0.5)._ref_v)
             v_records.append(v_record)
-            e_record = h.Vector()
-            e_record.record(sec(0.5)._ref_e_extracellular)
-            e_records.append(e_record)
+            #e_record = h.Vector()
+            #e_record.record(sec(0.5)._ref_e_extracellular)
+            #e_records.append(e_record)
 
         simulation.simulate(threshold, reinit=True)
         v_rec = np.vstack([np.array(v) for v in v_records])
         e_rec = np.vstack([np.array(e) for e in e_records])
 
-        sec_inds_t, t_inds_t = np.where(np.diff(np.signbit(v_rec), axis=1))
+        sec_inds_t, t_inds_t = np.where(np.diff(np.signbit(v_rec-v_thresh), axis=1))
         sec_inds = []
         t_inds = []
         for s_ind, t_ind in zip(sec_inds_t, t_inds_t):
-            if np.all(v_rec[s_ind][t_ind+1:t_ind+50] > 0) or t_ind >= v_rec.shape[1]-55:
+            if np.all(v_rec[s_ind][t_ind+1:t_ind+50] > v_thresh) or t_ind >= 50:
                 sec_inds.append(s_ind)
                 t_inds.append(t_ind)
         sec_inds = np.array(sec_inds)
@@ -291,7 +293,6 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
         t_min = t_inds.min()
 
         if len(initiate_inds) > 1:
-            n_non_unique += 1
             initiate_ind = None
             t_test = np.inf
             for iind in initiate_inds:

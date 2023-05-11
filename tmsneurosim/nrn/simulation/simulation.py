@@ -14,6 +14,95 @@ class WaveformType(Enum):
     BIPHASIC = 2
 
 
+class __Backend:
+    """
+    NEURON backend. Set global tstop, dt, rhoe, and temp
+    parameters.
+
+    DEFAULTS
+    --------
+    dt      = 0.005 [ms]
+
+    tstop   = 1     [ms]
+
+    temp    = 37    [C]
+
+    """
+    __defaults__ = {
+        'dt': 0.005,
+        'tstop': 1,
+        'temp': 37,
+        'delay': 0.005
+    }
+
+    _instance = None  # Keep instance reference
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = object.__new__(cls, *args, **kwargs)
+        return cls._instance
+
+    def __init__(self):
+        self._dt = 0.005
+        self._tstop = 1
+        self._temp = 37
+        self._delay = 0.005
+
+
+    @property
+    def dt(self):
+        """Global simulation timestep."""
+        return self._dt
+
+    @dt.setter
+    def dt(self, value):
+        """Set dt globally."""
+        self._dt = value
+
+    @property
+    def tstop(self):
+        """Global simulation timestep."""
+        return self._tstop
+
+    @tstop.setter
+    def tstop(self, value):
+        """Set dt globally."""
+        self._tstop = value
+
+    @property
+    def temp(self):
+        """Global simulation timestep."""
+        return self._temp
+
+    @temp.setter
+    def temp(self, value):
+        """Set temp globally."""
+        self._temp = value
+
+    @property
+    def delay(self):
+        """Global simulation delay."""
+        return self._delay
+
+    @delay.setter
+    def temp(self, value):
+        """Set delay globally."""
+        self._delay = value
+
+    def reset(self, quantity=None):
+        if quantity is None:
+            for k, v in self.__defaults__.items():
+                setattr(self, k, v)
+        else:
+            try:
+                setattr(self, quantity, self.__defaults__[quantity])
+            except KeyError:
+                raise ValueError(f'nrn Backend has no default for {quantity}') from None
+
+
+Backend = __Backend()
+
+
 class Simulation:
     """ Wrapper to set up, modify and execute a NEURON simulation of a single cell.
 
@@ -38,10 +127,10 @@ class Simulation:
         self._action_potentials = h.Vector()
         self._action_potentials_recording_ids = h.Vector()
 
-        self.stimulation_delay = 0.005
-        self.simulation_temperature = 37
-        self.simulation_time_step = 0.005
-        self.simulation_duration = 1.0
+        self.stimulation_delay = Backend.delay
+        self.simulation_temperature = Backend.temp
+        self.simulation_time_step = Backend.dt
+        self.simulation_duration = Backend.tstop
         self.waveform, self.waveform_time = self._load_waveform(waveform_type)
 
         self.init_handler = None

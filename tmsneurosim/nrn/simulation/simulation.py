@@ -181,7 +181,7 @@ class Simulation:
         for i, section in enumerate(self.neuron_cell.all):
             for segment in section:
                 recording_netcon = h.NetCon(segment._ref_v, None, sec=section)
-                recording_netcon.threshold = 0
+                recording_netcon.threshold = 20
                 recording_netcon.record(self._action_potentials, self._action_potentials_recording_ids, i)
                 self.netcons.append(recording_netcon)
 

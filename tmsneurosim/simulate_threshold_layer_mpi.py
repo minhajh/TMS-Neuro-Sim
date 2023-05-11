@@ -11,6 +11,8 @@ from tqdm import tqdm
 from mpi4py import MPI
 from neuron import h
 
+import matplotlib.pyplot as plt
+
 from tmsneurosim.cortical_layer import CorticalLayer
 from tmsneurosim.nrn.cells import NeuronCell
 from tmsneurosim.nrn.simulation.e_field_simulation import EFieldSimulation
@@ -80,12 +82,18 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     layer_results = np.empty((len(cells), rotation_count, azimuthal_rotation.shape[0]), dtype=np.float64)
     layer_tags = np.empty((len(cells), rotation_count, azimuthal_rotation.shape[0]), dtype=np.int32)
     
-    if RANK == 0:
-        _master(total_sims, layer_results, layer_tags)
-    else:
-        _worker(all_params, record=record, record_all=record_all,
-                record_v=record_v, directory=directory,
+    if SIZE == 1:
+        run_all(all_params, layer_results, layer_tags, record=record,
+                record_all=record_all, record_v=record_v, directory=directory,
                 amp_scale_range=amp_scale_range)
+
+    else:
+        if RANK == 0:
+            _master(total_sims, layer_results, layer_tags)
+        else:
+            _worker(all_params, record=record, record_all=record_all,
+                    record_v=record_v, directory=directory,
+                    amp_scale_range=amp_scale_range)
 
     COMM.barrier()
 
@@ -108,6 +116,21 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
             layer.add_nearest_interpolation_field(np.nanmean(layer_thresholds, axis=0), 'Mean_Threshold_Visual')
 
     return layer.surface
+
+
+def run_all(params, layer_results, layer_tags, record=False, record_all=False,
+            record_v=True, directory=None, amp_scale_range=None):
+    
+    for r in params:
+        idx, cell, waveform_type, direction, position, rotation, layer = r
+        threshold, tag = calculate_cell_threshold(cell, waveform_type, direction,
+                                                  position, rotation, layer,
+                                                  record=record, record_all=record_all,
+                                                  idx=idx, directory=directory,
+                                                  amp_scale_range=amp_scale_range)
+        gc.collect()
+        layer_results[tuple(idx)] = threshold
+        layer_tags[tuple(idx)] = tag
 
 
 def _master(n_parameter_sets, threshes, tags):
@@ -254,11 +277,10 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
         e_rec = np.vstack([np.array(e) for e in e_records])
 
         sec_inds_t, t_inds_t = np.where(np.diff(np.signbit(v_rec), axis=1))
-        
         sec_inds = []
         t_inds = []
         for s_ind, t_ind in zip(sec_inds_t, t_inds_t):
-            if np.all(v_rec[s_ind][t_ind+1:t_ind+75] > threshold):
+            if np.all(v_rec[s_ind][t_ind+1:t_ind+50] > 0) or t_ind >= v_rec.shape[1]-55:
                 sec_inds.append(s_ind)
                 t_inds.append(t_ind)
         sec_inds = np.array(sec_inds)

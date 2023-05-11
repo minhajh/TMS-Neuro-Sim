@@ -41,7 +41,8 @@ def all_simulation_params(layer, cells, waveform_type, directions, positions,
 def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCell],
                                       waveform_type: WaveformType, rotation_count: int,
                                       rotation_step: int, initial_rotation: int = None,
-                                      record=False, directory=None, amp_scale_range=None) -> simnibs.Msh:
+                                      record=False, record_all=False, directory=None,
+                                      record_v=True, amp_scale_range=None) -> simnibs.Msh:
     """
     Simulates the threshold of each neuron at each simulation element with all azimuthal rotations.
     :param layer: The cortical layer to place the neurons on.
@@ -82,7 +83,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     if RANK == 0:
         _master(total_sims, layer_results, layer_tags)
     else:
-        _worker(all_params, record=record, directory=directory,
+        _worker(all_params, record=record, record_all=record_all,
+                record_v=record_v, directory=directory,
                 amp_scale_range=amp_scale_range)
 
     COMM.barrier()
@@ -142,7 +144,8 @@ def _master(n_parameter_sets, threshes, tags):
         complete += 1
 
 
-def _worker(params, record=False, directory=None, amp_scale_range=None):
+def _worker(params, record=False, record_all=False, record_v=True,
+            directory=None, amp_scale_range=None):
     deploy = np.empty(1, dtype='i')
     counter = -1
     gen = params
@@ -163,8 +166,8 @@ def _worker(params, record=False, directory=None, amp_scale_range=None):
         idx, cell, waveform_type, direction, position, rotation, layer = r
         threshold, tag = calculate_cell_threshold(cell, waveform_type, direction,
                                                   position, rotation, layer,
-                                                  record=record, idx=idx,
-                                                  directory=directory,
+                                                  record=record, record_all=record_all,
+                                                  idx=idx, directory=directory,
                                                   amp_scale_range=amp_scale_range)
         gc.collect()
         local_rec_thresh[:] = threshold
@@ -196,7 +199,8 @@ def _distribute_initial_jobs(n: int, deploy: np.ndarray):
 def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
                              direction: NDArray[np.float64], position: NDArray[np.float64],
                              azimuthal_rotation: float, layer: CorticalLayer, record=False,
-                             idx=None, directory=None, amp_scale_range=None) -> Tuple[float, int]:
+                             record_all=False, record_v=True, idx=None, directory=None,
+                             amp_scale_range=None) -> Tuple[float, int]:
     if np.any(np.isnan(direction)) or np.any(np.isnan(position)):
         return np.nan, 0
     cell.load()
@@ -221,7 +225,10 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
     threshold = simulation.find_threshold_factor()
 
     if record:
-        secs = cell.node + cell.unmyelin
+        if not record_all:
+            secs = cell.node + cell.unmyelin
+        else:
+            secs = cell.all
         v_records = []
         e_records = []
 
@@ -246,11 +253,23 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
         v_rec = np.vstack([np.array(v) for v in v_records])
         e_rec = np.vstack([np.array(e) for e in e_records])
 
-        sec_inds, t_inds = np.where(np.diff(np.signbit(v_rec), axis=1))
+        sec_inds_t, t_inds_t = np.where(np.diff(np.signbit(v_rec), axis=1))
+        
+        sec_inds = []
+        t_inds = []
+        for s_ind, t_ind in zip(sec_inds_t, t_inds_t):
+            if np.all(v_rec[s_ind][t_ind+1:t_ind+75] > threshold):
+                sec_inds.append(s_ind)
+                t_inds.append(t_ind)
+        sec_inds = np.array(sec_inds)
+        t_inds = np.array(t_inds)
+
         t_min_loc = np.where(t_inds==t_inds.min())[0]
         initiate_inds = sec_inds[t_min_loc]
         t_min = t_inds.min()
+
         if len(initiate_inds) > 1:
+            n_non_unique += 1
             initiate_ind = None
             t_test = np.inf
             for iind in initiate_inds:
@@ -259,19 +278,24 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
                 if t_pred < t_test:
                     initiate_ind = iind
                     t_test = t_pred
+            t_init = (t_min + t_test) * 0.005
         else:
             initiate_ind = initiate_inds[0]
+            dv = v_rec[initiate_ind][t_min+1] - v_rec[initiate_ind][t_min-1]
+            t_pred = -v_rec[initiate_ind][t_min] / dv
+            t_init = (t_min + t_pred) * 0.005
 
         data = {
-            'v_rec_thresh': v_rec,
-            'e_rec_thresh': e_rec,
             'soma_rec': np.array(soma_record),
             'axon_0': np.array(axon_0),
             'es': np.array(es),
             'threshold': threshold,
-            'area': area,
-            'initiate_ind': initiate_ind
+            'initiate_ind': initiate_ind,
+            't_init': t_init
         }
+
+        if record_v:
+            data['v_rec_thresh'] = v_rec
 
         i, j, k = idx
         save_dir = f"{directory}/{cell.__class__.__name__}/{cell.morphology_id:02d}/{j:02d}/{k:05d}/"

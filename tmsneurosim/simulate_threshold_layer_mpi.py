@@ -330,11 +330,11 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
             for scale in amp_scale_range:
                 simulation.simulate(threshold*scale, reinit=True)
                 v_rec = np.vstack([np.array(v) for v in v_records])
-                e_rec = np.vstack([np.array(e) for e in e_records])
+                # e_rec = np.vstack([np.array(e) for e in e_records])
                 v_name = f'v_rec_thresh_{scale}'
-                e_name = f'e_rec_thresh_{scale}'
+                # e_name = f'e_rec_thresh_{scale}'
                 np.save(save_dir+v_name, v_rec)
-                np.save(save_dir+e_name, e_rec)
+                # np.save(save_dir+e_name, e_rec)
             
     simulation.detach()
     return threshold, int(''.join(map(str, np.unique(tetrahedron_tags)))[::-1])

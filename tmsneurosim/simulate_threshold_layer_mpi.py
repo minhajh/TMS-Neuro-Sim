@@ -16,7 +16,8 @@ import matplotlib.pyplot as plt
 from tmsneurosim.cortical_layer import CorticalLayer
 from tmsneurosim.nrn.cells import NeuronCell
 from tmsneurosim.nrn.simulation.e_field_simulation import EFieldSimulation
-from tmsneurosim.nrn.simulation.simulation import WaveformType, Backend as N
+from tmsneurosim.nrn.simulation.simulation import WaveformType
+from tmsneurosim.nrn.simulation import Backend as N
 
 WHITE_MATTER_SURFACE = 1001
 GRAY_MATTER_SURFACE = 1002
@@ -85,7 +86,7 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     if SIZE == 1:
         run_all(all_params, layer_results, layer_tags, record=record,
                 record_all=record_all, record_v=record_v, directory=directory,
-                amp_scale_range=amp_scale_range)
+                amp_scale_range=amp_scale_range, total=total_sims)
 
     else:
         if RANK == 0:
@@ -119,14 +120,21 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
 
 
 def run_all(params, layer_results, layer_tags, record=False, record_all=False,
-            record_v=True, directory=None, amp_scale_range=None):
+            record_v=True, directory=None, amp_scale_range=None, total=None):
     
-    for r in params:
+    for r in tqdm(params, total=total):
         idx, cell, waveform_type, direction, position, rotation, layer = r
-        threshold, tag = calculate_cell_threshold(cell, waveform_type, direction,
-                                                  position, rotation, layer,
-                                                  record=record, record_all=record_all,
-                                                  idx=idx, directory=directory,
+        threshold, tag = calculate_cell_threshold(cell,
+                                                  waveform_type,
+                                                  direction,
+                                                  position,
+                                                  rotation,
+                                                  layer,
+                                                  record=record,
+                                                  record_all=record_all,
+                                                  idx=idx,
+                                                  directory=directory,
+                                                  record_v=record_v,
                                                   amp_scale_range=amp_scale_range)
         gc.collect()
         layer_results[tuple(idx)] = threshold
@@ -187,10 +195,17 @@ def _worker(params, record=False, record_all=False, record_v=True,
             counter += 1
         
         idx, cell, waveform_type, direction, position, rotation, layer = r
-        threshold, tag = calculate_cell_threshold(cell, waveform_type, direction,
-                                                  position, rotation, layer,
-                                                  record=record, record_all=record_all,
-                                                  idx=idx, directory=directory,
+        threshold, tag = calculate_cell_threshold(cell,
+                                                  waveform_type,
+                                                  direction,
+                                                  position,
+                                                  rotation,
+                                                  layer,
+                                                  record=record,
+                                                  record_all=record_all,
+                                                  idx=idx,
+                                                  directory=directory,
+                                                  record_v=record_v,
                                                   amp_scale_range=amp_scale_range)
         gc.collect()
         local_rec_thresh[:] = threshold
@@ -281,8 +296,11 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
         sec_inds_t, t_inds_t = np.where(np.diff(np.signbit(v_rec-v_thresh), axis=1))
         sec_inds = []
         t_inds = []
+
+        len_ap = int(N.ap_dur / N.dt)
+        
         for s_ind, t_ind in zip(sec_inds_t, t_inds_t):
-            if np.all(v_rec[s_ind][t_ind+1:t_ind+50] >= v_thresh) or t_ind >= 50:
+            if np.all(v_rec[s_ind][t_ind+1:t_ind+len_ap] >= v_thresh) or t_ind >= len_ap:
                 sec_inds.append(s_ind)
                 t_inds.append(t_ind)
         sec_inds = np.array(sec_inds)

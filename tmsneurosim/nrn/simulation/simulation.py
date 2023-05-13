@@ -7,111 +7,12 @@ from scipy.io import loadmat
 
 import tmsneurosim
 from tmsneurosim.nrn.cells import NeuronCell
+from tmsneurosim.nrn.simulation import Backend as N
 
 
 class WaveformType(Enum):
     MONOPHASIC = 1
     BIPHASIC = 2
-
-
-class __Backend:
-    """
-    NEURON backend. Set global tstop, dt, rhoe, and temp
-    parameters.
-
-    DEFAULTS
-    --------
-    dt      = 0.005 [ms]
-
-    tstop   = 1     [ms]
-
-    temp    = 37    [C]
-
-    """
-    __defaults__ = {
-        'dt': 0.005,
-        'tstop': 1,
-        'temp': 37,
-        'delay': 0.005
-    }
-
-    _instance = None  # Keep instance reference
-
-    def __new__(cls, *args, **kwargs):
-        if not cls._instance:
-            cls._instance = object.__new__(cls, *args, **kwargs)
-        return cls._instance
-
-    def __init__(self):
-        self._dt = 0.005
-        self._tstop = 1
-        self._temp = 37
-        self._delay = 0.005
-        self._threshold = 0
-
-
-    @property
-    def dt(self):
-        """Global simulation timestep."""
-        return self._dt
-
-    @dt.setter
-    def dt(self, value):
-        """Set dt globally."""
-        self._dt = value
-
-    @property
-    def threshold(self):
-        """Global simulation threshold."""
-        return self._threshold
-
-    @threshold.setter
-    def threshold(self, value):
-        """Set threshold globally."""
-        self._threshold = value
-
-    @property
-    def tstop(self):
-        """Global simulation timestep."""
-        return self._tstop
-
-    @tstop.setter
-    def tstop(self, value):
-        """Set dt globally."""
-        self._tstop = value
-
-    @property
-    def temp(self):
-        """Global simulation timestep."""
-        return self._temp
-
-    @temp.setter
-    def temp(self, value):
-        """Set temp globally."""
-        self._temp = value
-
-    @property
-    def delay(self):
-        """Global simulation delay."""
-        return self._delay
-
-    @delay.setter
-    def temp(self, value):
-        """Set delay globally."""
-        self._delay = value
-
-    def reset(self, quantity=None):
-        if quantity is None:
-            for k, v in self.__defaults__.items():
-                setattr(self, k, v)
-        else:
-            try:
-                setattr(self, quantity, self.__defaults__[quantity])
-            except KeyError:
-                raise ValueError(f'nrn Backend has no default for {quantity}') from None
-
-
-Backend = __Backend()
 
 
 class Simulation:
@@ -138,11 +39,11 @@ class Simulation:
         self._action_potentials = h.Vector()
         self._action_potentials_recording_ids = h.Vector()
 
-        self.stimulation_delay = Backend.delay
-        self.simulation_temperature = Backend.temp
-        self.simulation_time_step = Backend.dt
-        self.simulation_duration = Backend.tstop
-        self.simulation_threshold = Backend.threshold
+        self.stimulation_delay = N.delay
+        self.simulation_temperature = N.temp
+        self.simulation_time_step = N.dt
+        self.simulation_duration = N.tstop
+        self.simulation_threshold = N.threshold
         self.waveform, self.waveform_time = self._load_waveform(waveform_type)
 
         self.init_handler = None
@@ -192,10 +93,11 @@ class Simulation:
         self.netcons = []
         self.v_recs = []
         for i, section in enumerate(self.neuron_cell.all):
-            if section not in self.neuron_cell.myelin:
-                v = h.Vector()
-                v.record(section(0.5)._ref_v)
-                self.v_recs.append(v)
+            if N.validate:
+                if section not in self.neuron_cell.myelin:
+                    v = h.Vector()
+                    v.record(section(0.5)._ref_v)
+                    self.v_recs.append(v)
             for segment in section:
                 recording_netcon = h.NetCon(segment._ref_v, None, sec=section)
                 recording_netcon.threshold = self.simulation_threshold

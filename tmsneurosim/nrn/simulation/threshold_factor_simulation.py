@@ -55,7 +55,7 @@ class ThresholdFactorSimulation(Simulation):
 
         while low <= 0 or high >= 1e5:
             self.simulate(amplitude)
-            if np.unique(self._action_potentials_recording_ids.as_numpy()).size >= 3 and self.validate_is_active():
+            if np.unique(self._action_potentials_recording_ids.as_numpy()).size >= 3:
                 high = amplitude
                 amplitude = amplitude / 2
             else:
@@ -70,7 +70,7 @@ class ThresholdFactorSimulation(Simulation):
 
         while high - low > epsilon:
             self.simulate(amplitude)
-            if np.unique(self._action_potentials_recording_ids.as_numpy()).size >= 3 and self.validate_is_active():
+            if np.unique(self._action_potentials_recording_ids.as_numpy()).size >= 3:
                 high = amplitude
             else:
                 low = amplitude

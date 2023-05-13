@@ -164,7 +164,9 @@ nrnmech.dll
 
 sim_test.py
 sim_test_mpi.py
+sim_tms_mpi.py
 nrn_output/
 results/
 tests/
 m2m*
+*.ipynb

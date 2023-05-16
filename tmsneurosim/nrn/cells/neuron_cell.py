@@ -18,6 +18,63 @@ from tmsneurosim.nrn.cells.cell_modification_parameters.cell_modification_parame
 from tmsneurosim.nrn.cells.cell_modification_parameters.maxh_modification_parameters import MaxhModificationParameters
 
 
+def half_ra(sec, end=False):
+    ra = 0
+    segs = [seg for seg in sec]
+    mid_index = segs.index(sec(0.5))
+    if end:
+        segs = segs[mid_index:]
+    else:
+        segs = segs[:mid_index+1]
+    for seg in segs:
+        ra += seg.ri()
+    return ra
+
+
+def full_ra(sec):
+    ra = 0
+    segs = [seg for seg in sec]
+    segs += [sec(1)]
+    for seg in segs:
+        ra += seg.ri()
+    return ra
+
+
+def get_parent_index(sec, secs):
+    ref = h.SectionRef(sec)
+    index = None
+    Ra = 0
+    start = True
+    while ref.has_parent():
+        if ref.parent in secs:
+            index = secs.index(ref.parent)
+            if start:
+                Ra += half_ra(sec)
+                start = False
+            Ra += half_ra(ref.parent, end=True)
+            break
+        if start:
+            Ra += half_ra(ref.sec)
+            start = False
+        else:
+            Ra += full_ra(ref.sec)
+        ref = h.SectionRef(ref.parent)
+    return index, 1/Ra
+
+
+def nodes_parentwise(cell, axons_only=True):
+    if axons_only:
+        secs = cell.node + cell.unmyelin
+    else:
+        secs = [sec for sec in cell.all if sec not in cell.myelin]
+    adjacency = np.zeros((len(secs), len(secs)))
+    for i, sec in enumerate(secs):
+        neighbor_index, ra = get_parent_index(sec, secs)
+        if neighbor_index is not None:
+            adjacency[i, neighbor_index] = ra
+    return adjacency
+
+
 class NeuronCell:
     """Holds information as well as sections of a specific NEURON cell.
 
@@ -70,6 +127,18 @@ class NeuronCell:
         self.morphology_id = morphology_id
         self.modification_parameters = modification_parameters
         self.loaded = False
+
+    def adjacency(self, axons_only=True):
+        if not self.loaded:
+            raise RuntimeError('Cell must be loaded to compute adjaceny matrix.')
+        adj = nodes_parentwise(self, axons_only=axons_only)
+        return adj + adj.T - np.diag(np.diag(adj))
+    
+    def axon_terminals(self):
+        secs = self.node + self.unmyelin
+        adj = self.adjacency(axons_only=True)
+        terminal_indices = np.where(np.count_nonzero(adj, axis=1) == 1)[0]
+        return [secs[i] for i in terminal_indices]
 
     def apply_biophysics(self) -> None:
         """ Applies biophysical properties to the sections of the cell
@@ -168,6 +237,19 @@ class NeuronCell:
         self.unmyelin.clear()
         self.direction = np.array([0, 1, 0])
         self.loaded = False
+
+    def unload_except(self, keep_sections):
+        for section in self.all:
+            if section not in keep_sections:
+                h.delete_section(sec=section)
+        self.all = [sec for sec in self.all if sec in keep_sections]
+        self.axon = [sec for sec in self.axon if sec in keep_sections]
+        self.dend = [sec for sec in self.dend if sec in keep_sections]
+        self.soma = [sec for sec in self.soma if sec in keep_sections]
+        self.apic = [sec for sec in self.apic if sec in keep_sections]
+        self.myelin = [sec for sec in self.myelin if sec in keep_sections]
+        self.node = [sec for sec in self.node if sec in keep_sections]
+        self.unmyelin = [sec for sec in self.unmyelin if sec in keep_sections]
 
     @staticmethod
     def _scale_section_point_diameters(scale_factor: float, sections: [nrn.Section]) -> None:
@@ -652,7 +734,8 @@ class NeuronCell:
 
     def display_2d_matplotlib(self, path=None, include_diameter=False, rotated_90=False,
                               plot_grid=True, background_transparent=False, y_range=None,
-                              node_index_emphasis=None, ignore_dendrites=False) -> None:
+                              emphasis_sections=None, ignore_dendrites=False,
+                              emphasis_star=None) -> None:
         """
         Displays the cell in 2d using matplotlib.
         :param path: Path to save the plot to. If None: shows plot blocking.
@@ -669,9 +752,7 @@ class NeuronCell:
 
         color = {'soma': [0, 0, 0, 1], 'axon': [0.8, 0, 0, 1], 'Myelin': [0.8, 0.6, 0, 1], 'Node': [0, 0, 0.8, 1],
                  'Unmyelin': [0.8, 0, 0, 1], 'dend': [0.25, 0.75, 0, 1], 'apic': [0.75, 0, 0.75, 1]}
-        if node_index_emphasis is not None:
-            emphasis_sections = self.node + self.unmyelin
-            emphasis_sections = [emphasis_sections[i] for i in node_index_emphasis]
+        
         if rotated_90:
             z_sorted_sections = sorted(self.all, key=lambda sec: sec(0.5).x_xtra)
         else:
@@ -683,6 +764,14 @@ class NeuronCell:
             plot_sections = list(color.keys())
 
         for i, section in enumerate(z_sorted_sections):
+
+            alpha = 1
+            if emphasis_sections is not None:
+                if section in emphasis_sections:
+                    alpha = 1
+                else:
+                    alpha = 0.3
+
             x_coordinates = []
             y_coordinates = []
             diameter = []
@@ -693,20 +782,20 @@ class NeuronCell:
                         if include_diameter:
                             soma_circle = plt.Circle((self.soma[0](0.5).y_xtra, self.soma[0](0.5).z_xtra),
                                                     self.soma[0].L / 2,
-                                                    color=color[section_type], zorder=i)
+                                                    color=color[section_type], zorder=i, alpha=alpha)
                         else:
                             soma_circle = plt.Circle((self.soma[0](0.5).y_xtra, self.soma[0](0.5).z_xtra),
                                                     30,
-                                                    color=color[section_type], zorder=i)
+                                                    color=color[section_type], zorder=i, alpha=alpha)
                     else:
                         if include_diameter:
                             soma_circle = plt.Circle((self.soma[0](0.5).x_xtra, self.soma[0](0.5).z_xtra),
                                                     self.soma[0].L / 2,
-                                                    color=color[section_type], zorder=i)
+                                                    color=color[section_type], zorder=i, alpha=alpha)
                         else:
                             soma_circle = plt.Circle((self.soma[0](0.5).x_xtra, self.soma[0](0.5).z_xtra),
                                                     30,
-                                                    color=color[section_type], zorder=i)
+                                                    color=color[section_type], zorder=i, alpha=alpha)
                     plt.gca().add_patch(soma_circle)
                     continue
 
@@ -718,6 +807,11 @@ class NeuronCell:
                     y_coordinates.append(section.z3d(point_index))
                     diameter.append(section.diam3d(point_index))
                 if include_diameter:
+                    scale = 1
+                    if emphasis_sections is not None:
+                        if section in emphasis_sections:
+                            scale = 3
+                    
                     for point_index in range(section.n3d() - 1):
                         ortogonal = np.array([x_coordinates[point_index + 1], y_coordinates[point_index + 1]]) - np.array(
                             [x_coordinates[point_index], y_coordinates[point_index]])
@@ -726,22 +820,23 @@ class NeuronCell:
                             ortogonal = np.array([0, 1])
                         ortogonal = ortogonal / np.linalg.norm(ortogonal)
                         s1 = np.array([x_coordinates[point_index], y_coordinates[point_index]]) + ortogonal * (
-                                diameter[point_index] / 2)
+                                scale*diameter[point_index] / 2)
                         s2 = np.array([x_coordinates[point_index], y_coordinates[point_index]]) + ortogonal * -(
-                                diameter[point_index] / 2)
+                                scale*diameter[point_index] / 2)
                         e1 = np.array([x_coordinates[point_index + 1], y_coordinates[point_index + 1]]) + ortogonal * (
-                                diameter[point_index + 1] / 2)
+                                scale*diameter[point_index + 1] / 2)
                         e2 = np.array([x_coordinates[point_index + 1], y_coordinates[point_index + 1]]) + ortogonal * -(
-                                diameter[point_index + 1] / 2)
-                        polygon = plt.Polygon([s1, s2, e2, e1], True, facecolor=color[section_type], zorder=i)
+                                scale*diameter[point_index + 1] / 2)
+                        polygon = plt.Polygon([s1, s2, e2, e1], True, facecolor=color[section_type], zorder=i, alpha=alpha)
                         plt.gca().add_patch(polygon)
-                    if node_index_emphasis is not None:
-                        if section in emphasis_sections:
+
+                    if emphasis_star is not None:
+                        if section in emphasis_star:
                             plt.plot(x_coordinates, y_coordinates,  marker='*', c='red', lw=3)
                 else:
-                    plt.plot(x_coordinates, y_coordinates, c=color[section.name().split('.')[-1].split('[')[0]], lw=3)
-                    if node_index_emphasis is not None:
-                        if section in emphasis_sections:
+                    plt.plot(x_coordinates, y_coordinates, c=color[section.name().split('.')[-1].split('[')[0]], lw=3, alpha=alpha)
+                    if emphasis_star is not None:
+                        if section in emphasis_star:
                             plt.plot(x_coordinates, y_coordinates,  marker='*', c='red', lw=3)
 
         legend_lines = [Line2D([0], [0], marker='o', color='w', markerfacecolor=color['soma'], markersize=10),

@@ -30,6 +30,42 @@ RANK = COMM.rank
 SIZE = COMM.size
 
 
+def get_branch_from_terminal(cell, terminal_sec, terminate_before_soma=False):
+    branch = []
+    sref = h.SectionRef(terminal_sec)
+    branch.append(sref.sec)
+    while sref.sec is not cell.soma[0]:
+        p = sref.parent
+        sref = h.SectionRef(p)
+        if terminate_before_soma and sref.sec is cell.soma[0]:
+            break
+        branch.append(sref.sec)
+    return branch
+
+def get_branch_to_branch(cell, terminal_sec, adjacency):
+    branch = []
+    sref = h.SectionRef(terminal_sec)
+    secs = cell.node + cell.unmyelin
+    branch.append(sref.sec)
+    while sref.sec is not cell.soma[0]:
+        p = sref.parent
+        sref = h.SectionRef(p)
+        branch.append(sref.sec)
+        if sref.sec in secs:
+            if np.count_nonzero(adjacency[secs.index(sref.sec)]) > 2:
+                break
+    return branch
+
+def full_branch(cell, terminal_sec, adjacency):
+    main_branch = get_branch_from_terminal(cell, terminal_sec)
+    aux = []
+    for t_sec in cell.terminals():
+        aux_branch = get_branch_to_branch(cell, t_sec, adjacency)
+        if any([sec in main_branch for sec in aux_branch]):
+            aux += aux_branch
+    return main_branch + aux
+
+
 def all_simulation_params(layer, cells, waveform_type, directions, positions, 
                           rotation_count, rotation_step, azimuthal_rotation):
 
@@ -45,7 +81,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
                                       waveform_type: WaveformType, rotation_count: int,
                                       rotation_step: int, initial_rotation: int = None,
                                       record=False, record_all=False, directory=None,
-                                      record_v=True, amp_scale_range=None) -> simnibs.Msh:
+                                      record_v=True, amp_scale_range=None,
+                                      record_disconnected=False) -> simnibs.Msh:
     """
     Simulates the threshold of each neuron at each simulation element with all azimuthal rotations.
     :param layer: The cortical layer to place the neurons on.
@@ -86,7 +123,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     if SIZE == 1:
         run_all(all_params, layer_results, layer_tags, record=record,
                 record_all=record_all, record_v=record_v, directory=directory,
-                amp_scale_range=amp_scale_range, total=total_sims)
+                amp_scale_range=amp_scale_range, record_disconnected=record_disconnected,
+                total=total_sims)
 
     else:
         if RANK == 0:
@@ -94,7 +132,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
         else:
             _worker(all_params, record=record, record_all=record_all,
                     record_v=record_v, directory=directory,
-                    amp_scale_range=amp_scale_range)
+                    amp_scale_range=amp_scale_range,
+                    record_disconnected=record_disconnected)
 
     COMM.barrier()
 
@@ -120,7 +159,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
 
 
 def run_all(params, layer_results, layer_tags, record=False, record_all=False,
-            record_v=True, directory=None, amp_scale_range=None, total=None):
+            record_v=True, directory=None, amp_scale_range=None, record_disconnected=False,
+            total=None):
     
     for r in tqdm(params, total=total):
         idx, cell, waveform_type, direction, position, rotation, layer = r
@@ -135,7 +175,8 @@ def run_all(params, layer_results, layer_tags, record=False, record_all=False,
                                                   idx=idx,
                                                   directory=directory,
                                                   record_v=record_v,
-                                                  amp_scale_range=amp_scale_range)
+                                                  amp_scale_range=amp_scale_range,
+                                                  record_disconnected=record_disconnected)
         gc.collect()
         layer_results[tuple(idx)] = threshold
         layer_tags[tuple(idx)] = tag
@@ -176,7 +217,8 @@ def _master(n_parameter_sets, threshes, tags):
 
 
 def _worker(params, record=False, record_all=False, record_v=True,
-            directory=None, amp_scale_range=None):
+            directory=None, amp_scale_range=None,
+            record_disconnected=False):
     deploy = np.empty(1, dtype='i')
     counter = -1
     gen = params
@@ -206,7 +248,8 @@ def _worker(params, record=False, record_all=False, record_v=True,
                                                   idx=idx,
                                                   directory=directory,
                                                   record_v=record_v,
-                                                  amp_scale_range=amp_scale_range)
+                                                  amp_scale_range=amp_scale_range,
+                                                  record_disconnected=record_disconnected)
         gc.collect()
         local_rec_thresh[:] = threshold
         local_rec_tag[:] = tag
@@ -238,7 +281,7 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
                              direction: NDArray[np.float64], position: NDArray[np.float64],
                              azimuthal_rotation: float, layer: CorticalLayer, record=False,
                              record_all=False, record_v=True, idx=None, directory=None,
-                             amp_scale_range=None) -> Tuple[float, int]:
+                             amp_scale_range=None, record_disconnected=False) -> Tuple[float, int]:
     if np.any(np.isnan(direction)) or np.any(np.isnan(position)):
         return np.nan, 0
     cell.load()
@@ -269,6 +312,7 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
             secs = cell.node + cell.unmyelin
         else:
             secs = cell.all
+
         v_records = []
         # e_records = []
 
@@ -279,7 +323,6 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
         axon_0.record(cell.axon[0](0.5)._ref_v)
 
         es = [sec(0.5).es_xtra for sec in secs]
-        area = [sec(0.5).area() for sec in secs]
 
         for sec in secs:
             v_record = h.Vector()
@@ -341,8 +384,8 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
         i, j, k = idx
         save_dir = f"{directory}/{cell.__class__.__name__}/{cell.morphology_id:02d}/{j:02d}/{k:05d}/"
         os.makedirs(save_dir, exist_ok=True)
-        for k, v in data.items():
-            np.save(save_dir+k, v)
+        for key, value in data.items():
+            np.save(save_dir+key, value)
 
         if amp_scale_range is not None:
             for scale in amp_scale_range:
@@ -353,7 +396,104 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
                 # e_name = f'e_rec_thresh_{scale}'
                 np.save(save_dir+v_name, v_rec)
                 # np.save(save_dir+e_name, e_rec)
+
+        if record_disconnected:
             
+            # -- branch to soma --
+
+            v_records.clear()
+            cell.unload()
+            cell.load()
+            simulation = EFieldSimulation(cell, waveform_type)
+            simulation.apply_e_field(transformed_e_field)
+
+            if not record_all:
+                secs = cell.node + cell.unmyelin
+            else:
+                secs = cell.all
+
+            init_sec = secs[initiate_ind]
+
+            distances = [h.distance(sec(0.5), cell.soma[0](0.5))
+                         for sec in cell.terminals(cell.apic)]
+            
+            es_apic = [sec(0.5).es_xtra for sec in cell.terminals(cell.apic)]
+            top_d = np.argmax(np.abs(es_apic))
+
+            branch = get_branch_from_terminal(cell, init_sec)
+
+            """
+            apic_branches = []
+            for d in top_d[:5]:
+                apic_branch = get_branch_from_terminal(cell, cell.terminals(cell.apic)[d])
+                apic_branches += apic_branch
+            """
+
+            apic_branch = get_branch_from_terminal(cell, cell.terminals(cell.apic)[top_d])
+
+            cell.unload_except(branch + apic_branch)
+            simulation.attach()
+
+            """
+            if not record_all:
+                secs = cell.node + cell.unmyelin
+            else:
+                secs = cell.all
+
+            for sec in secs:
+                v_record = h.Vector()
+                v_record.record(sec(0.5)._ref_v)
+                v_records.append(v_record)
+
+            v_record_init_sec = h.Vector().record(init_sec(0.5)._ref_v)
+            """
+
+            threshold_reduced = simulation.find_threshold_factor()
+
+            # v_rec = np.vstack([np.array(v) for v in v_records])
+
+            np.save(save_dir+'threshold_reduced', threshold_reduced)
+            # np.save(save_dir+'v_branch_to_soma_init_sec', v_record_init_sec.as_numpy())
+
+            # -- branch to branch --
+            """
+            v_records.clear()
+            cell.unload()
+            cell.load()
+            simulation = EFieldSimulation(cell, waveform_type)
+            simulation.attach(spike_recording=False)
+            simulation.apply_e_field(transformed_e_field)
+
+            if not record_all:
+                secs = cell.node + cell.unmyelin
+            else:
+                secs = cell.all
+
+            init_sec = secs[initiate_ind]
+
+            branch = get_branch_to_branch(cell, init_sec, cell.adjacency())
+
+            cell.unload_except(branch)
+
+            if not record_all:
+                secs = cell.node + cell.unmyelin
+            else:
+                secs = cell.all
+
+            for sec in secs:
+                v_record = h.Vector()
+                v_record.record(sec(0.5)._ref_v)
+                v_records.append(v_record)
+
+            v_record_init_sec = h.Vector().record(init_sec(0.5)._ref_v)
+
+            simulation.simulate(threshold, reinit=True)
+            v_rec = np.vstack([np.array(v) for v in v_records])
+
+            np.save(save_dir+'v_branch_to_branch', v_rec)
+            np.save(save_dir+'v_branch_to_branch_init_sec', v_record_init_sec.as_numpy())
+            """
+
     simulation.detach()
     return threshold, int(''.join(map(str, np.unique(tetrahedron_tags)))[::-1])
 

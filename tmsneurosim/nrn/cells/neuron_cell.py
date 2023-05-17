@@ -62,11 +62,9 @@ def get_parent_index(sec, secs):
     return index, 1/Ra
 
 
-def nodes_parentwise(cell, axons_only=True):
-    if axons_only:
+def nodes_parentwise(cell, secs=None):
+    if secs is None:
         secs = cell.node + cell.unmyelin
-    else:
-        secs = [sec for sec in cell.all if sec not in cell.myelin]
     adjacency = np.zeros((len(secs), len(secs)))
     for i, sec in enumerate(secs):
         neighbor_index, ra = get_parent_index(sec, secs)
@@ -128,15 +126,16 @@ class NeuronCell:
         self.modification_parameters = modification_parameters
         self.loaded = False
 
-    def adjacency(self, axons_only=True):
+    def adjacency(self, secs=None):
         if not self.loaded:
             raise RuntimeError('Cell must be loaded to compute adjaceny matrix.')
-        adj = nodes_parentwise(self, axons_only=axons_only)
+        adj = nodes_parentwise(self, secs=secs)
         return adj + adj.T - np.diag(np.diag(adj))
     
-    def axon_terminals(self):
-        secs = self.node + self.unmyelin
-        adj = self.adjacency(axons_only=True)
+    def terminals(self, secs=None):
+        if secs is None:
+            secs = self.node + self.unmyelin
+        adj = self.adjacency(secs=secs)
         terminal_indices = np.where(np.count_nonzero(adj, axis=1) == 1)[0]
         return [secs[i] for i in terminal_indices]
 

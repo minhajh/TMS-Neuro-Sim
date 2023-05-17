@@ -50,12 +50,15 @@ class Simulation:
         self.init_state = None
         self.attached = False
 
-    def attach(self):
+        self.netcons = []
+
+    def attach(self, spike_recording=True):
         """
         Attaches spike recording to the neuron and connects the simulation initialization
         methode to the global NEURON space.
         """
-        self._init_spike_recording()
+        if spike_recording:
+            self._init_spike_recording()
         self.init_handler = h.FInitializeHandler(2, self._post_finitialize)
 
         self.attached = True
@@ -63,13 +66,14 @@ class Simulation:
     def detach(self):
         """ Removes the spike recording from the neuron and disconnects the initialization methode.
         """
-        for net in self.netcons:
-            net.record()
-        self.netcons.clear()
-        del self.init_handler
-        self.init_handler = None
+        if self.attached:
+            for net in self.netcons:
+                net.record()
+            self.netcons.clear()
+            del self.init_handler
+            self.init_handler = None
 
-        self.attached = False
+            self.attached = False
 
     def _post_finitialize(self):
         """ Initialization methode to unsure a steady state before the actual simulation is started.

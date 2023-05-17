@@ -18,6 +18,8 @@ from tmsneurosim.nrn.cells import NeuronCell
 from tmsneurosim.nrn.simulation.e_field_simulation import EFieldSimulation
 from tmsneurosim.nrn.simulation.simulation import WaveformType
 from tmsneurosim.nrn.simulation import Backend as N
+from tmsneurosim.nrn.cells.cell_modification_parameters.cell_modification_parameters import (
+    CellModificationParameters, AxonModificationMode)
 
 WHITE_MATTER_SURFACE = 1001
 GRAY_MATTER_SURFACE = 1002
@@ -401,6 +403,9 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
             
             # -- branch to soma --
 
+            p = CellModificationParameters(apic_diameter_scaling_factor=2,
+                                           axon_modification_mode=AxonModificationMode.MYELINATED_AXON)
+
             v_records.clear()
             cell.unload()
             cell.load()
@@ -429,7 +434,11 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
                 apic_branches += apic_branch
             """
 
-            apic_branch = get_branch_from_terminal(cell, cell.terminals(cell.apic)[top_d])
+            apic_branch = get_branch_from_terminal(cell, cell.terminals(cell.apic)[top_d], terminate_before_soma=True)
+
+            for sec in apic_branch:
+                for seg in sec:
+                    seg.diam *= 2
 
             cell.unload_except(branch + apic_branch)
             simulation.attach()

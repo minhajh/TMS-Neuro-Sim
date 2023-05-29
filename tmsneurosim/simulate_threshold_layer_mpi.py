@@ -445,7 +445,7 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
             """
 
             if random_disconnected:
-                terminal_sec = math.random(cell.terminals(cell.apic))
+                terminal_sec = random.choice(cell.terminals(cell.apic))
             else:
                 terminal_sec = cell.terminals(cell.apic)[top_d]
 

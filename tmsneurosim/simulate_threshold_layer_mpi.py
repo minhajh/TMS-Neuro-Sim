@@ -289,6 +289,7 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
                              record_all=False, record_v=True, idx=None, directory=None,
                              amp_scale_range=None, record_disconnected=False,
                              random_disconnected=False) -> Tuple[float, int]:
+    
     if np.any(np.isnan(direction)) or np.any(np.isnan(position)):
         return np.nan, 0
     cell.load()
@@ -456,6 +457,11 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
                     seg.diam *= 2
 
             cell.unload_except(branch + apic_branch)
+
+            es_unbranched = np.array([sec(0.5).es_extra for sec
+                                      in (branch + apic_branch)])
+            np.save(save_dir+'es_unbranched', es_unbranched)
+
             simulation.attach()
 
             """

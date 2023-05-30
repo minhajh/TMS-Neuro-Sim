@@ -458,7 +458,7 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
 
             cell.unload_except(branch + apic_branch)
 
-            es_unbranched = np.array([sec(0.5).es_extra for sec
+            es_unbranched = np.array([sec(0.5).es_xtra for sec
                                       in (branch + apic_branch)])
             np.save(save_dir+'es_unbranched', es_unbranched)
 

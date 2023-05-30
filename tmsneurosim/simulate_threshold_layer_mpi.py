@@ -92,7 +92,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                                       record_v=True,
                                       amp_scale_range=None,
                                       record_disconnected=False,
-                                      random_disconnected=False,
+                                      random_disconnected_axon=False,
+                                      random_disconnected_dend=False,
                                       pick_furthest_dend=False,
                                       include_basal=True,
                                       apic_branch_diam_scale=2.0) -> simnibs.Msh:
@@ -144,7 +145,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                 amp_scale_range=amp_scale_range,
                 record_disconnected=record_disconnected,
                 total=total_sims,
-                random_disconnected=random_disconnected,
+                random_disconnected_axon=random_disconnected_axon,
+                random_disconnected_dend=random_disconnected_dend,
                 include_basal=include_basal,
                 pick_furthest_dend=pick_furthest_dend)
 
@@ -159,7 +161,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                     directory=directory,
                     amp_scale_range=amp_scale_range,
                     record_disconnected=record_disconnected,
-                    random_disconnected=random_disconnected,
+                    random_disconnected_axon=random_disconnected_axon,
+                    random_disconnected_dend=random_disconnected_dend,
                     include_basal=include_basal,
                     pick_furthest_dend=pick_furthest_dend,
                     apic_branch_diam_scale=apic_branch_diam_scale)
@@ -196,7 +199,8 @@ def run_all(params,
             directory=None,
             amp_scale_range=None,
             record_disconnected=False,
-            random_disconnected=False,
+            random_disconnected_axon=False,
+            random_disconnected_dend=False,
             include_basal=True,
             pick_furthest_dend=True,
             total=None):
@@ -216,7 +220,8 @@ def run_all(params,
                                                   record_v=record_v,
                                                   amp_scale_range=amp_scale_range,
                                                   record_disconnected=record_disconnected,
-                                                  random_disconnected=random_disconnected,
+                                                  random_disconnected_axon=random_disconnected_axon,
+                                                  random_disconnected_dend=random_disconnected_dend,
                                                   include_basal=include_basal,
                                                   pick_furthest_dend=pick_furthest_dend)
         gc.collect()
@@ -265,7 +270,8 @@ def _worker(params,
             directory=None,
             amp_scale_range=None,
             record_disconnected=False,
-            random_disconnected=False,
+            random_disconnected_axon=False,
+            random_disconnected_dend=False,
             include_basal=True,
             pick_furthest_dend=True,
             apic_branch_diam_scale=2.0):
@@ -301,7 +307,8 @@ def _worker(params,
                                                   record_v=record_v,
                                                   amp_scale_range=amp_scale_range,
                                                   record_disconnected=record_disconnected,
-                                                  random_disconnected=random_disconnected,
+                                                  random_disconnected_axon=random_disconnected_axon,
+                                                  random_disconnected_dend=random_disconnected_dend,
                                                   include_basal=include_basal,
                                                   pick_furthest_dend=pick_furthest_dend,
                                                   apic_branch_diam_scale=apic_branch_diam_scale)
@@ -345,7 +352,8 @@ def calculate_cell_threshold(cell: NeuronCell,
                              directory: str = None,
                              amp_scale_range=None,
                              record_disconnected=False,
-                             random_disconnected=False,
+                             random_disconnected_axon=False,
+                             random_disconnected_dend=False,
                              include_basal=True,
                              pick_furthest_dend=True,
                              apic_branch_diam_scale=2.0) -> Tuple[float, int]:
@@ -494,9 +502,9 @@ def calculate_cell_threshold(cell: NeuronCell,
             np.save(save_dir+'e_field_soma', e_field_soma)
             
             es_dend = [sec(0.5).es_xtra for sec in dendritic_terminals]
-            top_d = np.argmax(np.abs(es_dend))
+            top_d = np.argmax(es_dend)
 
-            if random_disconnected:
+            if random_disconnected_axon:
                 terminal_sec = random.choice(cell.terminals())
             else:
                 terminal_sec = init_sec
@@ -510,7 +518,7 @@ def calculate_cell_threshold(cell: NeuronCell,
                 apic_branches += apic_branch
             """
 
-            if random_disconnected:
+            if random_disconnected_dend:
                 terminal_sec = random.choice(dendritic_terminals)
             else:
                 if not pick_furthest_dend:

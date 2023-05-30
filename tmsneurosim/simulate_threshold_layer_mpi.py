@@ -80,12 +80,22 @@ def all_simulation_params(layer, cells, waveform_type, directions, positions,
                 yield idx, cell, waveform_type, direction, position, rotation, layer 
 
 
-def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCell],
-                                      waveform_type: WaveformType, rotation_count: int,
-                                      rotation_step: int, initial_rotation: int = None,
-                                      record=False, record_all=False, directory=None,
-                                      record_v=True, amp_scale_range=None,
-                                      record_disconnected=False, random_disconnected=False) -> simnibs.Msh:
+def simulate_combined_threshold_layer(layer: CorticalLayer,
+                                      cells: List[NeuronCell],
+                                      waveform_type: WaveformType,
+                                      rotation_count: int,
+                                      rotation_step: int,
+                                      initial_rotation: int = None,
+                                      record=False,
+                                      record_all=False,
+                                      directory=None,
+                                      record_v=True,
+                                      amp_scale_range=None,
+                                      record_disconnected=False,
+                                      random_disconnected=False,
+                                      pick_furthest_dend=False,
+                                      include_basal=True,
+                                      apic_branch_diam_scale=2.0) -> simnibs.Msh:
     """
     Simulates the threshold of each neuron at each simulation element with all azimuthal rotations.
     :param layer: The cortical layer to place the neurons on.
@@ -124,20 +134,35 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     layer_tags = np.empty((len(cells), rotation_count, azimuthal_rotation.shape[0]), dtype=np.int32)
     
     if SIZE == 1:
-        run_all(all_params, layer_results, layer_tags, record=record,
-                record_all=record_all, record_v=record_v, directory=directory,
-                amp_scale_range=amp_scale_range, record_disconnected=record_disconnected,
-                total=total_sims, random_disconnected=random_disconnected)
+        run_all(all_params,
+                layer_results,
+                layer_tags,
+                record=record,
+                record_all=record_all,
+                record_v=record_v,
+                directory=directory,
+                amp_scale_range=amp_scale_range,
+                record_disconnected=record_disconnected,
+                total=total_sims,
+                random_disconnected=random_disconnected,
+                include_basal=include_basal,
+                pick_furthest_dend=pick_furthest_dend)
 
     else:
         if RANK == 0:
             _master(total_sims, layer_results, layer_tags)
         else:
-            _worker(all_params, record=record, record_all=record_all,
-                    record_v=record_v, directory=directory,
+            _worker(all_params,
+                    record=record,
+                    record_all=record_all,
+                    record_v=record_v,
+                    directory=directory,
                     amp_scale_range=amp_scale_range,
                     record_disconnected=record_disconnected,
-                    random_disconnected=random_disconnected)
+                    random_disconnected=random_disconnected,
+                    include_basal=include_basal,
+                    pick_furthest_dend=pick_furthest_dend,
+                    apic_branch_diam_scale=apic_branch_diam_scale)
 
     COMM.barrier()
 
@@ -162,9 +187,19 @@ def simulate_combined_threshold_layer(layer: CorticalLayer, cells: List[NeuronCe
     return layer.surface
 
 
-def run_all(params, layer_results, layer_tags, record=False, record_all=False,
-            record_v=True, directory=None, amp_scale_range=None, record_disconnected=False,
-            random_disconnected=False, total=None):
+def run_all(params,
+            layer_results,
+            layer_tags,
+            record=False,
+            record_all=False,
+            record_v=True,
+            directory=None,
+            amp_scale_range=None,
+            record_disconnected=False,
+            random_disconnected=False,
+            include_basal=True,
+            pick_furthest_dend=True,
+            total=None):
     
     for r in tqdm(params, total=total):
         idx, cell, waveform_type, direction, position, rotation, layer = r
@@ -181,7 +216,9 @@ def run_all(params, layer_results, layer_tags, record=False, record_all=False,
                                                   record_v=record_v,
                                                   amp_scale_range=amp_scale_range,
                                                   record_disconnected=record_disconnected,
-                                                  random_disconnected=random_disconnected)
+                                                  random_disconnected=random_disconnected,
+                                                  include_basal=include_basal,
+                                                  pick_furthest_dend=pick_furthest_dend)
         gc.collect()
         layer_results[tuple(idx)] = threshold
         layer_tags[tuple(idx)] = tag
@@ -221,9 +258,18 @@ def _master(n_parameter_sets, threshes, tags):
         complete += 1
 
 
-def _worker(params, record=False, record_all=False, record_v=True,
-            directory=None, amp_scale_range=None,
-            record_disconnected=False, random_disconnected=False):
+def _worker(params,
+            record=False,
+            record_all=False,
+            record_v=True,
+            directory=None,
+            amp_scale_range=None,
+            record_disconnected=False,
+            random_disconnected=False,
+            include_basal=True,
+            pick_furthest_dend=True,
+            apic_branch_diam_scale=2.0):
+    
     deploy = np.empty(1, dtype='i')
     counter = -1
     gen = params
@@ -255,7 +301,10 @@ def _worker(params, record=False, record_all=False, record_v=True,
                                                   record_v=record_v,
                                                   amp_scale_range=amp_scale_range,
                                                   record_disconnected=record_disconnected,
-                                                  random_disconnected=random_disconnected)
+                                                  random_disconnected=random_disconnected,
+                                                  include_basal=include_basal,
+                                                  pick_furthest_dend=pick_furthest_dend,
+                                                  apic_branch_diam_scale=apic_branch_diam_scale)
         gc.collect()
         local_rec_thresh[:] = threshold
         local_rec_tag[:] = tag
@@ -283,12 +332,23 @@ def _distribute_initial_jobs(n: int, deploy: np.ndarray):
         deploy[:] = size - 1
 
 
-def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
-                             direction: NDArray[np.float64], position: NDArray[np.float64],
-                             azimuthal_rotation: float, layer: CorticalLayer, record=False,
-                             record_all=False, record_v=True, idx=None, directory=None,
-                             amp_scale_range=None, record_disconnected=False,
-                             random_disconnected=False) -> Tuple[float, int]:
+def calculate_cell_threshold(cell: NeuronCell,
+                             waveform_type: WaveformType,
+                             direction: NDArray[np.float64],
+                             position: NDArray[np.float64],
+                             azimuthal_rotation: float,
+                             layer: CorticalLayer,
+                             record=False,
+                             record_all=False,
+                             record_v=True,
+                             idx=None,
+                             directory: str = None,
+                             amp_scale_range=None,
+                             record_disconnected=False,
+                             random_disconnected=False,
+                             include_basal=True,
+                             pick_furthest_dend=True,
+                             apic_branch_diam_scale=2.0) -> Tuple[float, int]:
     
     if np.any(np.isnan(direction)) or np.any(np.isnan(position)):
         return np.nan, 0
@@ -409,9 +469,6 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
             
             # -- branch to soma --
 
-            p = CellModificationParameters(apic_diameter_scaling_factor=2,
-                                           axon_modification_mode=AxonModificationMode.MYELINATED_AXON)
-
             v_records.clear()
             cell.unload()
             cell.load()
@@ -425,15 +482,19 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
 
             init_sec = secs[initiate_ind]
 
-            distances = [h.distance(sec(0.5), cell.soma[0](0.5))
-                         for sec in cell.terminals(cell.apic)]
+            if include_basal:
+                dendritic_comps = cell.apic + cell.dend
+            else:
+                dendritic_comps = cell.apic
+
+            dendritic_terminals = cell.terminals(dendritic_comps)
             
             soma = cell.soma[0](0.5)
             e_field_soma = np.array([soma.Ex_xtra, soma.Ey_xtra, soma.Ez_xtra])
             np.save(save_dir+'e_field_soma', e_field_soma)
             
-            es_apic = [sec(0.5).es_xtra for sec in cell.terminals(cell.apic)]
-            top_d = np.argmax(np.abs(es_apic))
+            es_dend = [sec(0.5).es_xtra for sec in dendritic_terminals]
+            top_d = np.argmax(np.abs(es_dend))
 
             if random_disconnected:
                 terminal_sec = random.choice(cell.terminals())
@@ -450,15 +511,21 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
             """
 
             if random_disconnected:
-                terminal_sec = random.choice(cell.terminals(cell.apic))
+                terminal_sec = random.choice(dendritic_terminals)
             else:
-                terminal_sec = cell.terminals(cell.apic)[top_d]
+                if not pick_furthest_dend:
+                    terminal_sec = dendritic_terminals[top_d]
+                else:
+                    pick_from = dendritic_terminals
+                    origin = np.array([init_sec(0.5).x_xtra, init_sec(0.5).y_xtra, init_sec(0.5).z_xtra])
+                    ds = [euclidean_distance(sec, origin) for sec in pick_from]
+                    terminal_sec = pick_from[np.argmax(ds)]
 
             apic_branch = get_branch_from_terminal(cell, terminal_sec, terminate_before_soma=True)
 
             for sec in apic_branch:
                 for seg in sec:
-                    seg.diam *= 2
+                    seg.diam *= apic_branch_diam_scale
 
             cell.unload_except(branch + apic_branch)
 
@@ -559,3 +626,9 @@ def rotation_from_vectors(vec1: NDArray[np.float64], vec2: NDArray[np.float64]) 
         kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
         rotation = Rotation.from_matrix(np.eye(3) + kmat + kmat.dot(kmat) * ((1 - c) / (s ** 2)))
     return rotation
+
+
+def euclidean_distance(section, origin):
+    loc = np.array([section(0.5).x_xtra, section(0.5).y_xtra, section(0.5).z_xtra])
+    return np.sqrt(np.square(loc-origin).sum())
+

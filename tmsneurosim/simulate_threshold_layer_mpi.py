@@ -537,10 +537,13 @@ def calculate_cell_threshold(cell: NeuronCell,
 
             cell.unload_except(branch + apic_branch)
 
-            simplified = branch + apic_branch[::-1]
+            simplified = (branch + apic_branch[::-1])[::-1]
 
             es_unbranched = np.array([sec(0.5).es_xtra for sec in simplified])
+            dist_unbranched = np.array([h.distance(simplified[0](0.5), s(0.5))
+                                        for s in simplified])
             np.save(save_dir+'es_unbranched', es_unbranched)
+            np.save(save_dir+'dist_unbranched', dist_unbranched)
 
             e_field_simp = []
             for sec in simplified:

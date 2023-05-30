@@ -428,6 +428,10 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
             distances = [h.distance(sec(0.5), cell.soma[0](0.5))
                          for sec in cell.terminals(cell.apic)]
             
+            soma = cell.soma[0](0.5)
+            e_field_soma = np.array([soma.Ex_xtra, soma.Ey_xtra, soma.Ez_xtra])
+            np.save(save_dir+'e_field_soma', e_field_soma)
+            
             es_apic = [sec(0.5).es_xtra for sec in cell.terminals(cell.apic)]
             top_d = np.argmax(np.abs(es_apic))
 
@@ -458,9 +462,17 @@ def calculate_cell_threshold(cell: NeuronCell, waveform_type: WaveformType,
 
             cell.unload_except(branch + apic_branch)
 
-            es_unbranched = np.array([sec(0.5).es_xtra for sec
-                                      in (branch + apic_branch[::-1])])
+            simplified = branch + apic_branch[::-1]
+
+            es_unbranched = np.array([sec(0.5).es_xtra for sec in simplified])
             np.save(save_dir+'es_unbranched', es_unbranched)
+
+            e_field_simp = []
+            for sec in simplified:
+                e_field_simp.append([sec(0.5).Ex_xtra, sec(0.5).Ey_xtra, sec(0.5).Ez_xtra])
+            e_field_simp = np.array(e_field_simp)
+
+            np.save(save_dir+'e_field_simplified', e_field_simp)
 
             simulation.attach()
 

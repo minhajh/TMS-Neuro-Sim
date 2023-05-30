@@ -502,7 +502,7 @@ def calculate_cell_threshold(cell: NeuronCell,
             np.save(save_dir+'e_field_soma', e_field_soma)
             
             es_dend = [sec(0.5).es_xtra for sec in dendritic_terminals]
-            top_d = np.argmax(es_dend)
+            top_d = np.argmax(np.abs(es_dend))
 
             if random_disconnected_axon:
                 terminal_sec = random.choice(cell.terminals())

@@ -96,7 +96,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                                       random_disconnected_dend=False,
                                       pick_furthest_dend=False,
                                       include_basal=True,
-                                      apic_branch_diam_scale=2.0) -> simnibs.Msh:
+                                      apic_branch_diam_scale=2.0,
+                                      axon_branch_diam_scale=1.0) -> simnibs.Msh:
     """
     Simulates the threshold of each neuron at each simulation element with all azimuthal rotations.
     :param layer: The cortical layer to place the neurons on.
@@ -165,7 +166,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                     random_disconnected_dend=random_disconnected_dend,
                     include_basal=include_basal,
                     pick_furthest_dend=pick_furthest_dend,
-                    apic_branch_diam_scale=apic_branch_diam_scale)
+                    apic_branch_diam_scale=apic_branch_diam_scale,
+                    axon_branch_diam_scale=axon_branch_diam_scale)
 
     COMM.barrier()
 
@@ -274,7 +276,8 @@ def _worker(params,
             random_disconnected_dend=False,
             include_basal=True,
             pick_furthest_dend=True,
-            apic_branch_diam_scale=2.0):
+            apic_branch_diam_scale=2.0,
+            axon_branch_diam_scale=1.0):
     
     deploy = np.empty(1, dtype='i')
     counter = -1
@@ -311,7 +314,8 @@ def _worker(params,
                                                   random_disconnected_dend=random_disconnected_dend,
                                                   include_basal=include_basal,
                                                   pick_furthest_dend=pick_furthest_dend,
-                                                  apic_branch_diam_scale=apic_branch_diam_scale)
+                                                  apic_branch_diam_scale=apic_branch_diam_scale,
+                                                  axon_branch_diam_scale=axon_branch_diam_scale)
         gc.collect()
         local_rec_thresh[:] = threshold
         local_rec_tag[:] = tag
@@ -356,7 +360,8 @@ def calculate_cell_threshold(cell: NeuronCell,
                              random_disconnected_dend=False,
                              include_basal=True,
                              pick_furthest_dend=True,
-                             apic_branch_diam_scale=2.0) -> Tuple[float, int]:
+                             apic_branch_diam_scale=2.0,
+                             axon_branch_diam_scale=1.0) -> Tuple[float, int]:
     
     if np.any(np.isnan(direction)) or np.any(np.isnan(position)):
         return np.nan, 0
@@ -531,6 +536,11 @@ def calculate_cell_threshold(cell: NeuronCell,
 
             apic_branch = get_branch_from_terminal(cell, terminal_sec, terminate_before_soma=True)
 
+            for sec in branch:
+                if sec is not cell.soma[0]:
+                    for seg in sec:
+                        seg.diam *= axon_branch_diam_scale
+                        
             for sec in apic_branch:
                 for seg in sec:
                     seg.diam *= apic_branch_diam_scale

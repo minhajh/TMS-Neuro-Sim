@@ -480,7 +480,7 @@ def calculate_cell_threshold(cell: NeuronCell,
 
         if record_disconnected:
             
-            # -- branch to soma --
+            # -- select branch to soma --
 
             v_records.clear()
             cell.unload()
@@ -495,20 +495,6 @@ def calculate_cell_threshold(cell: NeuronCell,
 
             init_sec = secs[initiate_ind]
 
-            if include_basal:
-                dendritic_comps = cell.apic + cell.dend
-            else:
-                dendritic_comps = cell.apic
-
-            dendritic_terminals = cell.terminals(dendritic_comps)
-            
-            soma = cell.soma[0](0.5)
-            e_field_soma = np.array([soma.Ex_xtra, soma.Ey_xtra, soma.Ez_xtra])
-            np.save(save_dir+'e_field_soma', e_field_soma)
-            
-            es_dend = [sec(0.5).es_xtra for sec in dendritic_terminals]
-            top_d = np.argmax(np.abs(es_dend))
-
             if random_disconnected_axon:
                 terminal_sec = random.choice(cell.terminals())
             else:
@@ -516,12 +502,25 @@ def calculate_cell_threshold(cell: NeuronCell,
 
             branch = get_branch_from_terminal(cell, terminal_sec)
 
-            """
-            apic_branches = []
-            for d in top_d[:5]:
-                apic_branch = get_branch_from_terminal(cell, cell.terminals(cell.apic)[d])
-                apic_branches += apic_branch
-            """
+
+            # -- record E-field at soma --
+
+            soma = cell.soma[0](0.5)
+            e_field_soma = np.array([soma.Ex_xtra, soma.Ey_xtra, soma.Ez_xtra])
+            np.save(save_dir+'e_field_soma', e_field_soma)
+
+
+            # -- select dendritic branch --
+
+            if include_basal:
+                dendritic_comps = cell.apic + cell.dend
+            else:
+                dendritic_comps = cell.apic
+
+            dendritic_terminals = cell.terminals(dendritic_comps)
+            
+            es_dend = [sec(0.5).es_xtra for sec in dendritic_terminals]
+            top_d = np.argmax(np.abs(es_dend))
 
             if random_disconnected_dend:
                 terminal_sec = random.choice(dendritic_terminals)
@@ -536,6 +535,9 @@ def calculate_cell_threshold(cell: NeuronCell,
 
             apic_branch = get_branch_from_terminal(cell, terminal_sec, terminate_before_soma=True)
 
+
+            # -- apply geometric transformations --
+
             for sec in branch:
                 if sec is not cell.soma[0]:
                     for seg in sec:
@@ -545,15 +547,25 @@ def calculate_cell_threshold(cell: NeuronCell,
                 for seg in sec:
                     seg.diam *= apic_branch_diam_scale
 
+
+            # -- reduce to unbranched model --
+
             cell.unload_except(branch + apic_branch)
+
+
+            # -- record quasipotentials along simplified model --
 
             simplified = (branch + apic_branch[::-1])[::-1]
 
             es_unbranched = np.array([sec(0.5).es_xtra for sec in simplified])
             dist_unbranched = np.array([h.distance(simplified[0](0.5), s(0.5))
                                         for s in simplified])
+            
             np.save(save_dir+'es_unbranched', es_unbranched)
             np.save(save_dir+'dist_unbranched', dist_unbranched)
+
+
+            # -- record E-field along simplified model --
 
             e_field_simp = []
             for sec in simplified:
@@ -562,67 +574,13 @@ def calculate_cell_threshold(cell: NeuronCell,
 
             np.save(save_dir+'e_field_simplified', e_field_simp)
 
+
+            # -- find threshold of reduced model --
+
             simulation.attach()
-
-            """
-            if not record_all:
-                secs = cell.node + cell.unmyelin
-            else:
-                secs = cell.all
-
-            for sec in secs:
-                v_record = h.Vector()
-                v_record.record(sec(0.5)._ref_v)
-                v_records.append(v_record)
-
-            v_record_init_sec = h.Vector().record(init_sec(0.5)._ref_v)
-            """
-
             threshold_reduced = simulation.find_threshold_factor()
-
-            # v_rec = np.vstack([np.array(v) for v in v_records])
-
             np.save(save_dir+'threshold_reduced', threshold_reduced)
-            # np.save(save_dir+'v_branch_to_soma_init_sec', v_record_init_sec.as_numpy())
-
-            # -- branch to branch --
-            """
-            v_records.clear()
-            cell.unload()
-            cell.load()
-            simulation = EFieldSimulation(cell, waveform_type)
-            simulation.attach(spike_recording=False)
-            simulation.apply_e_field(transformed_e_field)
-
-            if not record_all:
-                secs = cell.node + cell.unmyelin
-            else:
-                secs = cell.all
-
-            init_sec = secs[initiate_ind]
-
-            branch = get_branch_to_branch(cell, init_sec, cell.adjacency())
-
-            cell.unload_except(branch)
-
-            if not record_all:
-                secs = cell.node + cell.unmyelin
-            else:
-                secs = cell.all
-
-            for sec in secs:
-                v_record = h.Vector()
-                v_record.record(sec(0.5)._ref_v)
-                v_records.append(v_record)
-
-            v_record_init_sec = h.Vector().record(init_sec(0.5)._ref_v)
-
-            simulation.simulate(threshold, reinit=True)
-            v_rec = np.vstack([np.array(v) for v in v_records])
-
-            np.save(save_dir+'v_branch_to_branch', v_rec)
-            np.save(save_dir+'v_branch_to_branch_init_sec', v_record_init_sec.as_numpy())
-            """
+            
 
     simulation.detach()
     return threshold, int(''.join(map(str, np.unique(tetrahedron_tags)))[::-1])

@@ -481,6 +481,8 @@ def calculate_cell_threshold(cell: NeuronCell,
 
         if terminals_only:
             data['terminal_coords'] = cell.terminal_coords()
+            terminal_efields = np.array([[t.Ex_xtra, t.Ey_xtra, t.Ez_xtra] for t in cell.terminals()])
+            data['terminal_efield'] = terminal_efields
 
         if record_v:
             data['v_rec_thresh'] = v_rec

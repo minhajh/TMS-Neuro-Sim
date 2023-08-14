@@ -139,12 +139,25 @@ class NeuronCell:
         terminal_indices = np.where(np.count_nonzero(adj, axis=1) == 1)[0]
         return [secs[i] for i in terminal_indices]
     
-    def distant_efield_aligned_terminal(self):
+    def terminal_coords(self, soma_origin=True):
         terminals = self.terminals()
+        if soma_origin:
+            coords = np.array([[t.x_xtra-self.soma[0].x_xtra, t.y_xtra-self.soma[0].y_xtra,
+                                t.z_xtra-self.soma[0].z_xtra] for t in terminals])
+        else:
+            coords = np.array([[t.x_xtra, t.y_xtra, t.z_xtra] for t in terminals])
+        return coords
+    
+    def terminal_efield_inner_prod(self):
+        coords = self.terminal_coords()
         v = np.array([self.soma[0].Ex_xtra, self.soma[0].Ey_xtra, self.soma[0].Ez_xtra])
         v = v / np.dot(v, v)
-        us = np.array([[t.x_xtra, t.y_xtra, t.z_xtra] for t in terminals])
-        inner_ps = np.dot(us, v)
+        inner_ps = np.dot(coords, v)
+        return inner_ps
+    
+    def distant_efield_aligned_terminal(self):
+        terminals = self.terminals()
+        inner_ps = self.terminal_efield_inner_prod()
         return terminals[np.argmax(inner_ps)]
 
     def apply_biophysics(self) -> None:

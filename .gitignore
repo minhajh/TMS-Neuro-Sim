@@ -165,6 +165,7 @@ nrnmech.dll
 sim_test.py
 sim_test_mpi.py
 sim_tms_mpi.py
+mpi_tms.sh
 nrn_output/
 results/
 tests/

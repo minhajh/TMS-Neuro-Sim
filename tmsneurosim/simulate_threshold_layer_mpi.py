@@ -93,7 +93,7 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                                       amp_scale_range=None,
                                       record_disconnected=False,
                                       random_disconnected_axon=False,
-                                      distant_efield_aligned_terminal=False,
+                                      terminal_selection=None,
                                       random_disconnected_dend=False,
                                       pick_furthest_dend=False,
                                       include_basal=True,
@@ -149,7 +149,7 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                 record_disconnected=record_disconnected,
                 total=total_sims,
                 random_disconnected_axon=random_disconnected_axon,
-                distant_efield_aligned_terminal=distant_efield_aligned_terminal,
+                terminal_selection=terminal_selection,
                 random_disconnected_dend=random_disconnected_dend,
                 include_basal=include_basal,
                 pick_furthest_dend=pick_furthest_dend,
@@ -167,7 +167,7 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                     amp_scale_range=amp_scale_range,
                     record_disconnected=record_disconnected,
                     random_disconnected_axon=random_disconnected_axon,
-                    distant_efield_aligned_terminal=distant_efield_aligned_terminal,
+                    terminal_selection=terminal_selection,
                     random_disconnected_dend=random_disconnected_dend,
                     include_basal=include_basal,
                     pick_furthest_dend=pick_furthest_dend,
@@ -208,7 +208,7 @@ def run_all(params,
             amp_scale_range=None,
             record_disconnected=False,
             random_disconnected_axon=False,
-            distant_efield_aligned_terminal=False,
+            terminal_selection=None,
             random_disconnected_dend=False,
             include_basal=True,
             pick_furthest_dend=True,
@@ -231,7 +231,7 @@ def run_all(params,
                                                   amp_scale_range=amp_scale_range,
                                                   record_disconnected=record_disconnected,
                                                   random_disconnected_axon=random_disconnected_axon,
-                                                  distant_efield_aligned_terminal=distant_efield_aligned_terminal,
+                                                  terminal_selection=terminal_selection,
                                                   random_disconnected_dend=random_disconnected_dend,
                                                   include_basal=include_basal,
                                                   pick_furthest_dend=pick_furthest_dend,
@@ -283,7 +283,7 @@ def _worker(params,
             amp_scale_range=None,
             record_disconnected=False,
             random_disconnected_axon=False,
-            distant_efield_aligned_terminal=False,
+            terminal_selection=None,
             random_disconnected_dend=False,
             include_basal=True,
             pick_furthest_dend=True,
@@ -323,7 +323,7 @@ def _worker(params,
                                                   amp_scale_range=amp_scale_range,
                                                   record_disconnected=record_disconnected,
                                                   random_disconnected_axon=random_disconnected_axon,
-                                                  distant_efield_aligned_terminal=distant_efield_aligned_terminal,
+                                                  terminal_selection=terminal_selection,
                                                   random_disconnected_dend=random_disconnected_dend,
                                                   include_basal=include_basal,
                                                   pick_furthest_dend=pick_furthest_dend,
@@ -371,7 +371,7 @@ def calculate_cell_threshold(cell: NeuronCell,
                              amp_scale_range=None,
                              record_disconnected=False,
                              random_disconnected_axon=False,
-                             distant_efield_aligned_terminal=False,
+                             terminal_selection=None,
                              random_disconnected_dend=False,
                              include_basal=True,
                              pick_furthest_dend=True,
@@ -514,7 +514,10 @@ def calculate_cell_threshold(cell: NeuronCell,
             simulation.apply_e_field(transformed_e_field)
 
             if not record_all:
-                secs = cell.node + cell.unmyelin
+                if terminals_only:
+                    secs = cell.terminals()
+                else:
+                    secs = cell.node + cell.unmyelin
             else:
                 secs = cell.all
 
@@ -522,10 +525,20 @@ def calculate_cell_threshold(cell: NeuronCell,
 
             if random_disconnected_axon:
                 terminal_sec = random.choice(cell.terminals())
-            elif distant_efield_aligned_terminal:
-                terminal_sec = cell.distant_efield_aligned_terminal()
             else:
-                terminal_sec = init_sec
+                valid = {'ip', 'max_es'}
+                if terminal_selection is None:
+                    terminal_sec = init_sec
+                else:
+                    if terminal_selection not in valid:
+                        print('invalid terminal selection method.')
+                        return
+                    if terminal_selection == 'ip':
+                        terminal_sec = cell.distant_efield_aligned_terminal()
+                    elif terminal_selection == 'max_es':
+                        terminals = cell.terminals()
+                        terminal_sec = terminals[np.argmax([t.es_xtra for t in terminals])]
+                
 
             branch = get_branch_from_terminal(cell, terminal_sec)
 

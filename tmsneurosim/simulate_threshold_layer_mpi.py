@@ -97,6 +97,7 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                                       random_disconnected_dend=False,
                                       pick_furthest_dend=False,
                                       include_basal=True,
+                                      terminals_only=False,
                                       apic_branch_diam_scale=2.0,
                                       axon_branch_diam_scale=1.0) -> simnibs.Msh:
     """
@@ -151,7 +152,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                 distant_efield_aligned_terminal=distant_efield_aligned_terminal,
                 random_disconnected_dend=random_disconnected_dend,
                 include_basal=include_basal,
-                pick_furthest_dend=pick_furthest_dend)
+                pick_furthest_dend=pick_furthest_dend,
+                terminals_only=terminals_only)
 
     else:
         if RANK == 0:
@@ -169,6 +171,7 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                     random_disconnected_dend=random_disconnected_dend,
                     include_basal=include_basal,
                     pick_furthest_dend=pick_furthest_dend,
+                    terminals_only=terminals_only,
                     apic_branch_diam_scale=apic_branch_diam_scale,
                     axon_branch_diam_scale=axon_branch_diam_scale)
 
@@ -209,6 +212,7 @@ def run_all(params,
             random_disconnected_dend=False,
             include_basal=True,
             pick_furthest_dend=True,
+            terminals_only=False,
             total=None):
     
     for r in tqdm(params, total=total):
@@ -230,7 +234,8 @@ def run_all(params,
                                                   distant_efield_aligned_terminal=distant_efield_aligned_terminal,
                                                   random_disconnected_dend=random_disconnected_dend,
                                                   include_basal=include_basal,
-                                                  pick_furthest_dend=pick_furthest_dend)
+                                                  pick_furthest_dend=pick_furthest_dend,
+                                                  terminals_only=terminals_only)
         gc.collect()
         layer_results[tuple(idx)] = threshold
         layer_tags[tuple(idx)] = tag
@@ -282,6 +287,7 @@ def _worker(params,
             random_disconnected_dend=False,
             include_basal=True,
             pick_furthest_dend=True,
+            terminals_only=False,
             apic_branch_diam_scale=2.0,
             axon_branch_diam_scale=1.0):
     
@@ -321,6 +327,7 @@ def _worker(params,
                                                   random_disconnected_dend=random_disconnected_dend,
                                                   include_basal=include_basal,
                                                   pick_furthest_dend=pick_furthest_dend,
+                                                  terminals_only=terminals_only,
                                                   apic_branch_diam_scale=apic_branch_diam_scale,
                                                   axon_branch_diam_scale=axon_branch_diam_scale)
         gc.collect()
@@ -368,6 +375,7 @@ def calculate_cell_threshold(cell: NeuronCell,
                              random_disconnected_dend=False,
                              include_basal=True,
                              pick_furthest_dend=True,
+                             terminals_only=False,
                              apic_branch_diam_scale=2.0,
                              axon_branch_diam_scale=1.0) -> Tuple[float, int]:
     
@@ -398,7 +406,10 @@ def calculate_cell_threshold(cell: NeuronCell,
 
     if record:
         if not record_all:
-            secs = cell.node + cell.unmyelin
+            if terminals_only:
+                secs = cell.terminals()
+            else:
+                secs = cell.node + cell.unmyelin
         else:
             secs = cell.all
 
@@ -460,12 +471,16 @@ def calculate_cell_threshold(cell: NeuronCell,
 
         data = {
             'soma_rec': np.array(soma_record),
+            'soma_efield': np.array([cell.soma[0].Ex_xtra, cell.soma[0].Ey_xtra, cell.soma[0].Ez_xtra]),
             'axon_0': np.array(axon_0),
             'es': np.array(es),
             'threshold': threshold,
             'initiate_ind': initiate_ind,
             't_init': t_init
         }
+
+        if terminals_only:
+            data['terminal_coords'] = cell.terminal_coords()
 
         if record_v:
             data['v_rec_thresh'] = v_rec

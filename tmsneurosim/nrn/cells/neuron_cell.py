@@ -138,6 +138,14 @@ class NeuronCell:
         adj = self.adjacency(secs=secs)
         terminal_indices = np.where(np.count_nonzero(adj, axis=1) == 1)[0]
         return [secs[i] for i in terminal_indices]
+    
+    def distant_efield_aligned_terminal(self):
+        terminals = self.terminals()
+        v = np.array([self.soma[0].Ex_xtra, self.soma[0].Ey_xtra, self.soma[0].Ez_xtra])
+        v = v / np.dot(v, v)
+        us = np.array([[t.x_xtra, t.y_xtra, t.z_xtra] for t in terminals])
+        inner_ps = np.dot(us, v)
+        return terminals[np.argmax(inner_ps)]
 
     def apply_biophysics(self) -> None:
         """ Applies biophysical properties to the sections of the cell

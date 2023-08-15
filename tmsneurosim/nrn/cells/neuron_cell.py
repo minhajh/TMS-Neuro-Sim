@@ -162,7 +162,16 @@ class NeuronCell:
             return terminals[np.argmax(inner_ps)]
         elif method == 'min':
             return terminals[np.argmin(inner_ps)]
-
+        
+    def terminal_activating_funcs(self):
+        terminals = self.terminals()
+        afs = []
+        secs = self.node + [self.axon[0]]
+        for t in terminals:
+            idx, r = get_parent_index(t, secs)
+            af = r * (secs[idx].es_extra - t.es_extra) / t.area()
+            afs.append(af)
+        return np.array(afs)
 
     def apply_biophysics(self) -> None:
         """ Applies biophysical properties to the sections of the cell

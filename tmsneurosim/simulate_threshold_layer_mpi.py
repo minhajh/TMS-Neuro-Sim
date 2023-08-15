@@ -523,10 +523,11 @@ def calculate_cell_threshold(cell: NeuronCell,
 
             init_sec = secs[initiate_ind]
 
+
             if random_disconnected_axon:
                 terminal_sec = random.choice(cell.terminals())
             else:
-                valid = {'max_ip', 'min_ip', 'max_es', 'min_es'}
+                valid = {'max_ip', 'min_ip', 'max_es', 'min_es', 'max_af'}
                 if terminal_selection is None:
                     terminal_sec = init_sec
                 else:
@@ -539,10 +540,16 @@ def calculate_cell_threshold(cell: NeuronCell,
                         terminal_sec = cell.distant_efield_aligned_terminal('min')
                     elif terminal_selection == 'max_es':
                         terminals = cell.terminals()
-                        terminal_sec = terminals[np.argmax([t.es_xtra for t in terminals])]
+                        es = [t.es_xtra for t in terminals]
+                        terminal_sec = terminals[np.argmax(es)]
                     elif terminal_selection == 'min_es':
                         terminals = cell.terminals()
-                        terminal_sec = terminals[np.argmin([t.es_xtra for t in terminals])]
+                        es = [t.es_xtra for t in terminals]
+                        terminal_sec = terminals[np.argmin(es)]
+                    elif terminal_selection == 'max_af':
+                        terminals = cell.terminals()
+                        afs = cell.terminal_activating_funcs()
+                        terminal_sec = terminals[np.argmax(afs)]
                 
 
             branch = get_branch_from_terminal(cell, terminal_sec)

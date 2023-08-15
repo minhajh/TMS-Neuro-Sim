@@ -476,7 +476,8 @@ def calculate_cell_threshold(cell: NeuronCell,
             'es': np.array(es),
             'threshold': threshold,
             'initiate_ind': initiate_ind,
-            't_init': t_init
+            't_init': t_init,
+            'position': position
         }
 
         if terminals_only:
@@ -534,23 +535,37 @@ def calculate_cell_threshold(cell: NeuronCell,
                     if terminal_selection not in valid:
                         print('invalid terminal selection method.')
                         return
+                    
                     if terminal_selection == 'max_ip':
-                        terminal_sec = cell.distant_efield_aligned_terminal('max')
+                        terminals = cell.terminals()
+                        decision_variable = cell.terminal_efield_inner_prod()
+                        terminal_sec = terminals[np.argmax(decision_variable)]
+                        np.save(save_dir+'terminal_dec_var', decision_variable)
+
                     elif terminal_selection == 'min_ip':
-                        terminal_sec = cell.distant_efield_aligned_terminal('min')
+                        terminals = cell.terminals()
+                        decision_variable = cell.terminal_efield_inner_prod()
+                        terminal_sec = terminals[np.argmin(decision_variable)]
+                        np.save(save_dir+'terminal_dec_var', decision_variable)
+
                     elif terminal_selection == 'max_es':
                         terminals = cell.terminals()
-                        es = [t.es_xtra for t in terminals]
-                        terminal_sec = terminals[np.argmax(es)]
+                        decision_variable = np.array([t.es_xtra for t in terminals])
+                        terminal_sec = terminals[np.argmax(decision_variable)]
+                        np.save(save_dir+'terminal_dec_var', decision_variable)
+
                     elif terminal_selection == 'min_es':
                         terminals = cell.terminals()
-                        es = [t.es_xtra for t in terminals]
-                        terminal_sec = terminals[np.argmin(es)]
+                        decision_variable = np.array([t.es_xtra for t in terminals])
+                        terminal_sec = terminals[np.argmin(decision_variable)]
+                        np.save(save_dir+'terminal_dec_var', decision_variable)
+
                     elif terminal_selection == 'max_af':
                         terminals = cell.terminals()
-                        afs = cell.terminal_activating_funcs()
-                        terminal_sec = terminals[np.argmax(afs)]
-                
+                        decision_variable = cell.terminal_activating_funcs()
+                        terminal_sec = terminals[np.argmax(decision_variable)]
+                        np.save(save_dir+'terminal_dec_var', decision_variable)
+
 
             branch = get_branch_from_terminal(cell, terminal_sec)
 

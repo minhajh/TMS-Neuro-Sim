@@ -169,7 +169,7 @@ class NeuronCell:
         secs = self.node + [self.axon[0]]
         for t in terminals:
             idx, r = get_parent_index(t, secs)
-            af = r * (secs[idx].es_extra - t.es_extra) / t.area()
+            af = r * (secs[idx](0.5).es_extra - t(0.5).es_extra) / t(0.5).area()
             afs.append(af)
         return np.array(afs)
 

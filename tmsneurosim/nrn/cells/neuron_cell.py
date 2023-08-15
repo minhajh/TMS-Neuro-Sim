@@ -155,10 +155,14 @@ class NeuronCell:
         inner_ps = np.dot(coords, v)
         return inner_ps
     
-    def distant_efield_aligned_terminal(self):
+    def distant_efield_aligned_terminal(self, method='max'):
         terminals = self.terminals()
         inner_ps = self.terminal_efield_inner_prod()
-        return terminals[np.argmax(inner_ps)]
+        if method == 'max':
+            return terminals[np.argmax(inner_ps)]
+        elif method == 'min':
+            return terminals[np.argmin(inner_ps)]
+
 
     def apply_biophysics(self) -> None:
         """ Applies biophysical properties to the sections of the cell

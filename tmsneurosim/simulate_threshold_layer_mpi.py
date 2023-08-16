@@ -598,9 +598,6 @@ def calculate_cell_threshold(cell: NeuronCell,
 
             branch = get_branch_from_terminal(cell, terminal_sec)
 
-            for sec in branch:
-                sec.es_xtra *= es_scale
-
 
             # -- record E-field at soma --
 
@@ -651,6 +648,8 @@ def calculate_cell_threshold(cell: NeuronCell,
 
             cell.unload_except(branch + apic_branch)
 
+            for sec in branch + apic_branch:
+                sec.es_xtra *= es_scale
 
             # -- record quasipotentials along simplified model --
 

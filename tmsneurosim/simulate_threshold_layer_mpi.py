@@ -68,6 +68,9 @@ def full_branch(cell, terminal_sec, adjacency):
             aux += aux_branch
     return main_branch + aux
 
+def min_max_normalize(v):
+    return -1 + 2*((v - v.min()) / (v.max() - v.min()))
+
 
 def all_simulation_params(layer, cells, waveform_type, directions, positions, 
                           rotation_count, rotation_step, azimuthal_rotation):
@@ -528,7 +531,8 @@ def calculate_cell_threshold(cell: NeuronCell,
             if random_disconnected_axon:
                 terminal_sec = random.choice(cell.terminals())
             else:
-                valid = {'max_ip', 'min_ip', 'max_es', 'min_es', 'max_af'}
+                valid = {'max_ip', 'min_ip', 'max_es', 'min_es',
+                         'max_af', 'combined'}
                 if terminal_selection is None:
                     terminal_sec = init_sec
                 else:
@@ -565,6 +569,26 @@ def calculate_cell_threshold(cell: NeuronCell,
                         decision_variable = cell.terminal_activating_funcs()
                         terminal_sec = terminals[np.argmax(decision_variable)]
                         np.save(save_dir+'terminal_dec_var', decision_variable)
+
+                    elif terminal_selection == 'combined':
+                        terminals = cell.terminals()
+
+                        af = cell.terminal_activating_funcs()
+                        af_n = min_max_normalize(af)
+
+                        ip = cell.terminal_efield_inner_prod()
+                        ip_n = min_max_normalize(ip)
+
+                        es = np.array([t.es_xtra for t in terminals])
+                        es_n = min_max_normalize(es)
+
+                        decision_variable = af_n + ip_n - es_n
+                        terminal_sec = terminals[np.argmax(decision_variable)]
+
+                        np.save(save_dir+'terminal_dec_var', decision_variable)
+                        np.save(save_dir+'af_norm', af_n)
+                        np.save(save_dir+'ip_norm', ip_n)
+                        np.save(save_dir+'es_norm', es_n)
 
 
             branch = get_branch_from_terminal(cell, terminal_sec)

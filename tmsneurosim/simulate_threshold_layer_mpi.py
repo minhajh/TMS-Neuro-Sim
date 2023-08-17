@@ -591,6 +591,9 @@ def calculate_cell_threshold(cell: NeuronCell,
                         terminal_sec = terminals[np.argmax(decision_variable)]
 
                         np.save(save_dir+'terminal_dec_var', decision_variable)
+                        np.save(save_dir+'af', af)
+                        np.save(save_dir+'ip', ip)
+                        np.save(save_dir+'es', es)
                         np.save(save_dir+'af_norm', af_n)
                         np.save(save_dir+'ip_norm', ip_n)
                         np.save(save_dir+'es_norm', es_n)

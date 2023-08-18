@@ -139,8 +139,8 @@ class NeuronCell:
         terminal_indices = np.where(np.count_nonzero(adj, axis=1) == 1)[0]
         return [secs[i] for i in terminal_indices]
     
-    def terminal_coords(self, soma_origin=True):
-        terminals = self.terminals()
+    def terminal_coords(self, soma_origin=True, secs=None):
+        terminals = self.terminals(secs=secs)
         if soma_origin:
             coords = np.array([[t.x_xtra-self.soma[0].x_xtra, t.y_xtra-self.soma[0].y_xtra,
                                 t.z_xtra-self.soma[0].z_xtra] for t in terminals])
@@ -148,8 +148,8 @@ class NeuronCell:
             coords = np.array([[t.x_xtra, t.y_xtra, t.z_xtra] for t in terminals])
         return coords
     
-    def terminal_efield_inner_prod(self):
-        coords = self.terminal_coords()
+    def terminal_efield_inner_prod(self, secs=None):
+        coords = self.terminal_coords(secs=secs)
         v = np.array([self.soma[0].Ex_xtra, self.soma[0].Ey_xtra, self.soma[0].Ez_xtra])
         v = v / np.dot(v, v)
         inner_ps = np.dot(coords, v)

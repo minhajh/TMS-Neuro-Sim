@@ -584,6 +584,9 @@ def calculate_cell_threshold(cell: NeuronCell,
                         ip = cell.terminal_efield_inner_prod()
                         ip_n = min_max_normalize(ip)
 
+                        ip_apic = cell.terminal_efield_inner_prod(cell.apic)
+                        ip_apic_n = min_max_normalize(ip_apic)
+
                         es = np.array([t.es_xtra for t in terminals])
                         es_n = min_max_normalize(es)
 
@@ -593,9 +596,11 @@ def calculate_cell_threshold(cell: NeuronCell,
                         np.save(save_dir+'terminal_dec_var', decision_variable)
                         np.save(save_dir+'af', af)
                         np.save(save_dir+'ip', ip)
+                        np.save(save_dir+'ip_apic', ip_apic)
                         np.save(save_dir+'es', es)
                         np.save(save_dir+'af_norm', af_n)
                         np.save(save_dir+'ip_norm', ip_n)
+                        np.save(save_dir+'ip_apic_norm', ip_apic_n)
                         np.save(save_dir+'es_norm', es_n)
 
 

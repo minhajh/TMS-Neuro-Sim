@@ -6,11 +6,14 @@ import random
 
 import numpy as np
 import simnibs
+import torch
 from numpy.typing import NDArray
 from scipy.spatial.transform import Rotation
 from tqdm import tqdm
 from mpi4py import MPI
 from neuron import h
+from sklearn.preprocessing import normalize
+
 
 import matplotlib.pyplot as plt
 
@@ -70,6 +73,37 @@ def full_branch(cell, terminal_sec, adjacency):
 
 def min_max_normalize(v):
     return -1 + 2*((v - v.min()) / (v.max() - v.min()))
+
+def make_nn_input(cell):
+    terminals = cell.terminals()
+    
+    ip = cell.terminal_efield_inner_prod()
+    ip_n = np.expand_dims(min_max_normalize(ip), axis=0)
+    
+    af = cell.terminal_activating_funcs()
+    af_n = np.expand_dims(min_max_normalize(af), axis=0)
+
+    es = np.array([t.es_xtra for t in terminals])
+    es_n = np.expand_dims(min_max_normalize(es), axis=0)
+    
+    soma = cell.soma[0]
+    ef = np.array([[soma.Ex_xtra, soma.Ey_xtra, soma.Ez_xtra]])
+    
+    reorder = np.argsort(ip_n, axis=1)[:, ::-1]
+    
+    ip_r = np.expand_dims(np.take_along_axis(ip_n, reorder, axis=1)[:, :10], -1)
+    af_r = np.expand_dims(np.take_along_axis(af_n, reorder, axis=1)[:, :10], -1)
+    es_r = np.expand_dims(np.take_along_axis(es_n, reorder, axis=1)[:, :10], -1)
+    
+    ef_r = np.expand_dims(normalize(ef, axis=1), 1)
+    ef_r = np.repeat(ef_r, 10, axis=1)
+    
+    ip_sum = np.expand_dims(np.sum(ip_n, axis=-1), (1, 2)) / 10
+    ip_sum = np.repeat(ip_sum, 10, axis=1)
+    
+    x = np.concatenate([ip_r+af_r-es_r, ip_r, af_r, es_r, ef_r, ip_sum], axis=-1)
+    
+    return x, reorder[0, :10]
 
 
 def all_simulation_params(layer, cells, waveform_type, directions, positions, 
@@ -603,6 +637,14 @@ def calculate_cell_threshold(cell: NeuronCell,
                         np.save(save_dir+'ip_apic_norm', ip_apic_n)
                         np.save(save_dir+'es_norm', es_n)
 
+                    elif terminal_selection == 'nn':
+                        nn = torch.jit.load('terminal_selection_scripted.pt')
+                        nn.eval()
+                        input, indices = make_nn_input(cell)
+                        with torch.no_grad():
+                            out = nn(input)
+                        terminals = cell.terminals()
+                        terminal_sec = terminals[indices[out.numpy().argmax()]]
 
             branch = get_branch_from_terminal(cell, terminal_sec)
 

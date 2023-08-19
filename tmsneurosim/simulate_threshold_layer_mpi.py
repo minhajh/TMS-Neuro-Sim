@@ -644,7 +644,7 @@ def calculate_cell_threshold(cell: NeuronCell,
                         with torch.no_grad():
                             out = nn(input)
                         terminals = cell.terminals()
-                        terminal_sec = terminals[indices[out.numpy().argmax()]]
+                        terminal_sec = terminals[indices[out.numpy()[0].argmax()]]
 
             branch = get_branch_from_terminal(cell, terminal_sec)
 

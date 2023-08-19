@@ -571,7 +571,7 @@ def calculate_cell_threshold(cell: NeuronCell,
                 terminal_sec = random.choice(cell.terminals())
             else:
                 valid = {'max_ip', 'min_ip', 'max_es', 'min_es',
-                         'max_af', 'combined'}
+                         'max_af', 'combined', 'nn'}
                 if terminal_selection is None:
                     terminal_sec = init_sec
                 else:

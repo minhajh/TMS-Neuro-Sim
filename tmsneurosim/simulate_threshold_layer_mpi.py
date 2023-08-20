@@ -571,7 +571,7 @@ def calculate_cell_threshold(cell: NeuronCell,
                 terminal_sec = random.choice(cell.terminals())
             else:
                 valid = {'max_ip', 'min_ip', 'max_es', 'min_es',
-                         'max_af', 'combined', 'nn'}
+                         'max_af', 'combined', 'combined_abs', 'nn'}
                 if terminal_selection is None:
                     terminal_sec = init_sec
                 else:
@@ -625,6 +625,34 @@ def calculate_cell_threshold(cell: NeuronCell,
                         es_n = min_max_normalize(es)
 
                         decision_variable = af_n + ip_n - es_n
+                        terminal_sec = terminals[np.argmax(decision_variable)]
+
+                        np.save(save_dir+'terminal_dec_var', decision_variable)
+                        np.save(save_dir+'af', af)
+                        np.save(save_dir+'ip', ip)
+                        np.save(save_dir+'ip_apic', ip_apic)
+                        np.save(save_dir+'es', es)
+                        np.save(save_dir+'af_norm', af_n)
+                        np.save(save_dir+'ip_norm', ip_n)
+                        np.save(save_dir+'ip_apic_norm', ip_apic_n)
+                        np.save(save_dir+'es_norm', es_n)
+
+                    elif terminal_selection == 'combined_abs':
+                        terminals = cell.terminals()
+
+                        af = cell.terminal_activating_funcs()
+                        af_n = min_max_normalize(af)
+
+                        ip = cell.terminal_efield_inner_prod()
+                        ip_n = min_max_normalize(ip)
+
+                        ip_apic = cell.terminal_efield_inner_prod(cell.apic)
+                        ip_apic_n = min_max_normalize(ip_apic)
+
+                        es = np.array([t.es_xtra for t in terminals])
+                        es_n = min_max_normalize(es)
+
+                        decision_variable = af_n + np.abs(ip_n) + np.abs(es_n)
                         terminal_sec = terminals[np.argmax(decision_variable)]
 
                         np.save(save_dir+'terminal_dec_var', decision_variable)

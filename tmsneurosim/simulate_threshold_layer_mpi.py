@@ -652,7 +652,7 @@ def calculate_cell_threshold(cell: NeuronCell,
                         es = np.array([t.es_xtra for t in terminals])
                         es_n = min_max_normalize(es)
 
-                        decision_variable = af_n + np.abs(ip_n) + np.abs(es_n)
+                        decision_variable = np.abs(af_n + ip_n - es_n)
                         terminal_sec = terminals[np.argmax(decision_variable)]
 
                         np.save(save_dir+'terminal_dec_var', decision_variable)

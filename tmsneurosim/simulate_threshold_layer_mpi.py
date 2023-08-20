@@ -447,7 +447,8 @@ def calculate_cell_threshold(cell: NeuronCell,
         tetrahedron_tags = np.append(tetrahedron_tags, [0])
 
     e_field_at_cell = np.nan_to_num(e_field_at_cell, nan=0)
-    transformed_e_field = azimuthal_rotation.inv().apply(rotation.inv().apply(e_field_at_cell))
+    transformed_e_field = azimuthal_rotation.inv().apply(rotation.inv().apply(
+        e_field_at_cell))
 
     simulation.apply_e_field(transformed_e_field)
     threshold = simulation.find_threshold_factor()

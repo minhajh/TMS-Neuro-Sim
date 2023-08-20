@@ -74,20 +74,28 @@ def full_branch(cell, terminal_sec, adjacency):
 def min_max_normalize(v):
     return -1 + 2*((v - v.min()) / (v.max() - v.min()))
 
-def make_nn_input(cell):
+def make_nn_input(cell, neg=False):
     terminals = cell.terminals()
     
     ip = cell.terminal_efield_inner_prod()
+    if neg:
+        ip *= -1
     ip_n = np.expand_dims(min_max_normalize(ip), axis=0)
     
     af = cell.terminal_activating_funcs()
+    if neg:
+        af *= -1
     af_n = np.expand_dims(min_max_normalize(af), axis=0)
 
     es = np.array([t.es_xtra for t in terminals])
+    if neg:
+        es *= -1
     es_n = np.expand_dims(min_max_normalize(es), axis=0)
     
     soma = cell.soma[0]
     ef = np.array([[soma.Ex_xtra, soma.Ey_xtra, soma.Ez_xtra]])
+    if neg:
+        ef *= -1
     
     reorder = np.argsort(ip_n, axis=1)[:, ::-1]
     
@@ -566,12 +574,15 @@ def calculate_cell_threshold(cell: NeuronCell,
 
             init_sec = secs[initiate_ind]
 
+            terminal_sec_neg = None
+
 
             if random_disconnected_axon:
                 terminal_sec = random.choice(cell.terminals())
             else:
                 valid = {'max_ip', 'min_ip', 'max_es', 'min_es',
-                         'max_af', 'combined', 'combined_abs', 'nn'}
+                         'max_af', 'combined', 'combined_abs',
+                         'combined_pos_neg', 'nn'}
                 if terminal_selection is None:
                     terminal_sec = init_sec
                 else:
@@ -627,6 +638,8 @@ def calculate_cell_threshold(cell: NeuronCell,
                         decision_variable = af_n + ip_n - es_n
                         terminal_sec = terminals[np.argmax(decision_variable)]
 
+                        terminal_sec_neg = terminals[np.argmax(-decision_variable)]
+
                         np.save(save_dir+'terminal_dec_var', decision_variable)
                         np.save(save_dir+'af', af)
                         np.save(save_dir+'ip', ip)
@@ -665,100 +678,143 @@ def calculate_cell_threshold(cell: NeuronCell,
                         np.save(save_dir+'ip_apic_norm', ip_apic_n)
                         np.save(save_dir+'es_norm', es_n)
 
+                    elif terminal_selection == 'combined_pos_neg':
+                        terminals = cell.terminals()
+
+                        af = cell.terminal_activating_funcs()
+                        af_n = min_max_normalize(af)
+
+                        ip = cell.terminal_efield_inner_prod()
+                        ip_n = min_max_normalize(ip)
+
+                        es = np.array([t.es_xtra for t in terminals])
+                        es_n = min_max_normalize(es)
+
+                        decision_variable = np.abs(af_n + ip_n - es_n)
+                        terminal_sec = terminals[np.argmax(decision_variable)]
+
+                        np.save(save_dir+'terminal_dec_var', decision_variable)
+                        np.save(save_dir+'af', af)
+                        np.save(save_dir+'ip', ip)
+                        np.save(save_dir+'ip_apic', ip_apic)
+                        np.save(save_dir+'es', es)
+                        np.save(save_dir+'af_norm', af_n)
+                        np.save(save_dir+'ip_norm', ip_n)
+                        np.save(save_dir+'ip_apic_norm', ip_apic_n)
+                        np.save(save_dir+'es_norm', es_n)
+
                     elif terminal_selection == 'nn':
                         nn = torch.jit.load('terminal_selection_scripted.pt')
                         nn.eval()
+
+                        terminals = cell.terminals()
+
+                        # pos
                         input, indices = make_nn_input(cell)
                         with torch.no_grad():
                             out = nn(torch.tensor(input, dtype=torch.float))
-                        terminals = cell.terminals()
                         decision_variable = out.numpy()[0]
                         np.save(save_dir+'terminal_dec_var', decision_variable)
                         np.save(save_dir+'terminal_dec_inds', indices)
                         terminal_sec = terminals[indices[decision_variable.argmax()]]
 
-            branch = get_branch_from_terminal(cell, terminal_sec)
+                        # neg
+                        input, indices = make_nn_input(cell, neg=True)
+                        with torch.no_grad():
+                            out = nn(torch.tensor(input, dtype=torch.float))
+                        decision_variable_neg = out.numpy()[0]
+                        np.save(save_dir+'terminal_dec_var_neg', decision_variable_neg)
+                        np.save(save_dir+'terminal_dec_inds_neg', indices)
+                        terminal_sec_neg = terminals[indices[decision_variable_neg.argmax()]]
+
+            tsecs = [terminal_sec]
+            suffixes = ['', '_neg']
+            if terminal_sec_neg is not None:
+                tsecs = [terminal_sec, terminal_sec_neg]
+
+            for terminal_sec, suffix in zip(tsecs, suffixes):
+                branch = get_branch_from_terminal(cell, terminal_sec)
 
 
-            # -- record E-field at soma --
+                # -- record E-field at soma --
 
-            soma = cell.soma[0](0.5)
-            e_field_soma = np.array([soma.Ex_xtra, soma.Ey_xtra, soma.Ez_xtra])
-            np.save(save_dir+'e_field_soma', e_field_soma)
+                soma = cell.soma[0](0.5)
+                e_field_soma = np.array([soma.Ex_xtra, soma.Ey_xtra, soma.Ez_xtra])
+                np.save(save_dir+'e_field_soma'+suffix, e_field_soma)
 
 
-            # -- select dendritic branch --
+                # -- select dendritic branch --
 
-            if include_basal:
-                dendritic_comps = cell.apic + cell.dend
-            else:
-                dendritic_comps = cell.apic
-
-            dendritic_terminals = cell.terminals(dendritic_comps)
-            
-            es_dend = [sec(0.5).es_xtra for sec in dendritic_terminals]
-            top_d = np.argmax(np.abs(es_dend))
-
-            if random_disconnected_dend:
-                terminal_sec = random.choice(dendritic_terminals)
-            else:
-                if not pick_furthest_dend:
-                    terminal_sec = dendritic_terminals[top_d]
+                if include_basal:
+                    dendritic_comps = cell.apic + cell.dend
                 else:
-                    pick_from = dendritic_terminals
-                    origin = np.array([init_sec(0.5).x_xtra, init_sec(0.5).y_xtra, init_sec(0.5).z_xtra])
-                    ds = [euclidean_distance(sec, origin) for sec in pick_from]
-                    terminal_sec = pick_from[np.argmax(ds)]
+                    dendritic_comps = cell.apic
 
-            apic_branch = get_branch_from_terminal(cell, terminal_sec, terminate_before_soma=True)
+                dendritic_terminals = cell.terminals(dendritic_comps)
+                
+                es_dend = [sec(0.5).es_xtra for sec in dendritic_terminals]
+                top_d = np.argmax(np.abs(es_dend))
+
+                if random_disconnected_dend:
+                    terminal_sec = random.choice(dendritic_terminals)
+                else:
+                    if not pick_furthest_dend:
+                        terminal_sec = dendritic_terminals[top_d]
+                    else:
+                        pick_from = dendritic_terminals
+                        origin = np.array([terminal_sec(0.5).x_xtra, terminal_sec(0.5).y_xtra, terminal_sec(0.5).z_xtra])
+                        ds = [euclidean_distance(sec, origin) for sec in pick_from]
+                        terminal_sec = pick_from[np.argmax(ds)]
+
+                apic_branch = get_branch_from_terminal(cell, terminal_sec, terminate_before_soma=True)
 
 
-            # -- apply geometric transformations --
+                # -- apply geometric transformations --
 
-            for sec in branch:
-                if sec is not cell.soma[0]:
+                for sec in branch:
+                    if sec is not cell.soma[0]:
+                        for seg in sec:
+                            seg.diam *= axon_branch_diam_scale
+                            
+                for sec in apic_branch:
                     for seg in sec:
-                        seg.diam *= axon_branch_diam_scale
-                        
-            for sec in apic_branch:
-                for seg in sec:
-                    seg.diam *= apic_branch_diam_scale
+                        seg.diam *= apic_branch_diam_scale
 
 
-            # -- reduce to unbranched model --
+                # -- reduce to unbranched model --
 
-            cell.unload_except(branch + apic_branch)
+                cell.unload_except(branch + apic_branch)
 
-            for sec in branch + apic_branch:
-                sec.es_xtra *= es_scale
+                for sec in branch + apic_branch:
+                    sec.es_xtra *= es_scale
 
-            # -- record quasipotentials along simplified model --
+                # -- record quasipotentials along simplified model --
 
-            simplified = (branch + apic_branch[::-1])[::-1]
+                simplified = (branch + apic_branch[::-1])[::-1]
 
-            es_unbranched = np.array([sec(0.5).es_xtra for sec in simplified])
-            dist_unbranched = np.array([h.distance(simplified[0](0.5), s(0.5))
-                                        for s in simplified])
-            
-            np.save(save_dir+'es_unbranched', es_unbranched)
-            np.save(save_dir+'dist_unbranched', dist_unbranched)
-
-
-            # -- record E-field along simplified model --
-
-            e_field_simp = []
-            for sec in simplified:
-                e_field_simp.append([sec(0.5).Ex_xtra, sec(0.5).Ey_xtra, sec(0.5).Ez_xtra])
-            e_field_simp = np.array(e_field_simp)
-
-            np.save(save_dir+'e_field_simplified', e_field_simp)
+                es_unbranched = np.array([sec(0.5).es_xtra for sec in simplified])
+                dist_unbranched = np.array([h.distance(simplified[0](0.5), s(0.5))
+                                            for s in simplified])
+                
+                np.save(save_dir+'es_unbranched'+suffix, es_unbranched)
+                np.save(save_dir+'dist_unbranched'+suffix, dist_unbranched)
 
 
-            # -- find threshold of reduced model --
+                # -- record E-field along simplified model --
 
-            simulation.attach()
-            threshold_reduced = simulation.find_threshold_factor()
-            np.save(save_dir+'threshold_reduced', threshold_reduced)
+                e_field_simp = []
+                for sec in simplified:
+                    e_field_simp.append([sec(0.5).Ex_xtra, sec(0.5).Ey_xtra, sec(0.5).Ez_xtra])
+                e_field_simp = np.array(e_field_simp)
+
+                np.save(save_dir+'e_field_simplified'+suffix, e_field_simp)
+
+
+                # -- find threshold of reduced model --
+
+                simulation.attach()
+                threshold_reduced = simulation.find_threshold_factor()
+                np.save(save_dir+'threshold_reduced'+suffix, threshold_reduced)
             
 
     simulation.detach()

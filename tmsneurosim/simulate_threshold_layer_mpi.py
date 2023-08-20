@@ -640,6 +640,9 @@ def calculate_cell_threshold(cell: NeuronCell,
                         terminal_sec_ind = np.argmax(decision_variable)
                         terminal_sec_ind_neg = np.argmax(-decision_variable)
 
+                        np.save(save_dir+'terminal_sec_ind', terminal_sec_ind)
+                        np.save(save_dir+'terminal_sec_ind_neg', terminal_sec_ind_neg)
+
                         np.save(save_dir+'terminal_dec_var', decision_variable)
                         np.save(save_dir+'af', af)
                         np.save(save_dir+'ip', ip)
@@ -717,6 +720,7 @@ def calculate_cell_threshold(cell: NeuronCell,
                         np.save(save_dir+'terminal_dec_var', decision_variable)
                         np.save(save_dir+'terminal_dec_inds', indices)
                         terminal_sec_ind = indices[decision_variable.argmax()]
+                        np.save(save_dir+'terminal_sec_ind', terminal_sec_ind)
 
                         # neg
                         input, indices = make_nn_input(cell, neg=True)
@@ -726,6 +730,7 @@ def calculate_cell_threshold(cell: NeuronCell,
                         np.save(save_dir+'terminal_dec_var_neg', decision_variable_neg)
                         np.save(save_dir+'terminal_dec_inds_neg', indices)
                         terminal_sec_ind_neg = indices[decision_variable_neg.argmax()]
+                        np.save(save_dir+'terminal_sec_ind_neg', terminal_sec_ind_neg)
 
 
             tsecs = [terminal_sec_ind]

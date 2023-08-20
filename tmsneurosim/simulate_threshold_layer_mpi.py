@@ -572,9 +572,8 @@ def calculate_cell_threshold(cell: NeuronCell,
             else:
                 secs = cell.all
 
-            init_sec = secs[initiate_ind]
 
-            terminal_sec_neg = None
+            terminal_sec_ind_neg = None
 
 
             if random_disconnected_axon:
@@ -584,40 +583,40 @@ def calculate_cell_threshold(cell: NeuronCell,
                          'max_af', 'combined', 'combined_abs',
                          'combined_pos_neg', 'nn'}
                 if terminal_selection is None:
-                    terminal_sec = init_sec
+                    terminal_sec_ind = initiate_ind
                 else:
                     if terminal_selection not in valid:
                         print('invalid terminal selection method.')
                         return
                     
                     if terminal_selection == 'max_ip':
-                        terminals = cell.terminals()
+                        # terminals = cell.terminals()
                         decision_variable = cell.terminal_efield_inner_prod()
-                        terminal_sec = terminals[np.argmax(decision_variable)]
+                        terminal_sec_ind = np.argmax(decision_variable)
                         np.save(save_dir+'terminal_dec_var', decision_variable)
 
                     elif terminal_selection == 'min_ip':
-                        terminals = cell.terminals()
+                        # terminals = cell.terminals()
                         decision_variable = cell.terminal_efield_inner_prod()
-                        terminal_sec = terminals[np.argmin(decision_variable)]
+                        terminal_sec_ind = np.argmin(decision_variable)
                         np.save(save_dir+'terminal_dec_var', decision_variable)
 
                     elif terminal_selection == 'max_es':
-                        terminals = cell.terminals()
+                        # terminals = cell.terminals()
                         decision_variable = np.array([t.es_xtra for t in terminals])
-                        terminal_sec = terminals[np.argmax(decision_variable)]
+                        terminal_sec_ind = np.argmax(decision_variable)
                         np.save(save_dir+'terminal_dec_var', decision_variable)
 
                     elif terminal_selection == 'min_es':
-                        terminals = cell.terminals()
+                        # terminals = cell.terminals()
                         decision_variable = np.array([t.es_xtra for t in terminals])
-                        terminal_sec = terminals[np.argmin(decision_variable)]
+                        terminal_sec_ind = np.argmin(decision_variable)
                         np.save(save_dir+'terminal_dec_var', decision_variable)
 
                     elif terminal_selection == 'max_af':
-                        terminals = cell.terminals()
+                        # terminals = cell.terminals()
                         decision_variable = cell.terminal_activating_funcs()
-                        terminal_sec = terminals[np.argmax(decision_variable)]
+                        terminal_sec_ind = np.argmax(decision_variable)
                         np.save(save_dir+'terminal_dec_var', decision_variable)
 
                     elif terminal_selection == 'combined':
@@ -636,9 +635,9 @@ def calculate_cell_threshold(cell: NeuronCell,
                         es_n = min_max_normalize(es)
 
                         decision_variable = af_n + ip_n - es_n
-                        terminal_sec = terminals[np.argmax(decision_variable)]
 
-                        terminal_sec_neg = terminals[np.argmax(-decision_variable)]
+                        terminal_sec_ind = np.argmax(decision_variable)
+                        terminal_sec_ind_neg = np.argmax(-decision_variable)
 
                         np.save(save_dir+'terminal_dec_var', decision_variable)
                         np.save(save_dir+'af', af)
@@ -716,7 +715,7 @@ def calculate_cell_threshold(cell: NeuronCell,
                         decision_variable = out.numpy()[0]
                         np.save(save_dir+'terminal_dec_var', decision_variable)
                         np.save(save_dir+'terminal_dec_inds', indices)
-                        terminal_sec = terminals[indices[decision_variable.argmax()]]
+                        terminal_sec_ind = indices[decision_variable.argmax()]
 
                         # neg
                         input, indices = make_nn_input(cell, neg=True)
@@ -725,21 +724,33 @@ def calculate_cell_threshold(cell: NeuronCell,
                         decision_variable_neg = out.numpy()[0]
                         np.save(save_dir+'terminal_dec_var_neg', decision_variable_neg)
                         np.save(save_dir+'terminal_dec_inds_neg', indices)
-                        terminal_sec_neg = terminals[indices[decision_variable_neg.argmax()]]
+                        terminal_sec_ind_neg = indices[decision_variable_neg.argmax()]
 
-            tsecs = [terminal_sec]
+
+            tsecs = [terminal_sec_ind]
             suffixes = ['', '_neg']
-            if terminal_sec_neg is not None:
-                tsecs = [terminal_sec, terminal_sec_neg]
+            if terminal_sec_ind_neg is not None:
+                tsecs = [terminal_sec_ind, terminal_sec_ind_neg]
 
-            for terminal_sec, suffix in zip(tsecs, suffixes):
+            for t_ind, suffix in zip(tsecs, suffixes):
+
+                v_records.clear()
+                cell.unload()
+                cell.load()
+                simulation = EFieldSimulation(cell, waveform_type)
+                simulation.apply_e_field(transformed_e_field)
+
+                terminal_sec = cell.terminals()[t_ind]
+
                 branch = get_branch_from_terminal(cell, terminal_sec)
 
 
                 # -- record E-field at soma --
 
                 soma = cell.soma[0](0.5)
-                e_field_soma = np.array([soma.Ex_xtra, soma.Ey_xtra, soma.Ez_xtra])
+                e_field_soma = np.array([soma.Ex_xtra,
+                                         soma.Ey_xtra,
+                                         soma.Ez_xtra])
                 np.save(save_dir+'e_field_soma'+suffix, e_field_soma)
 
 
@@ -762,11 +773,15 @@ def calculate_cell_threshold(cell: NeuronCell,
                         terminal_sec = dendritic_terminals[top_d]
                     else:
                         pick_from = dendritic_terminals
-                        origin = np.array([terminal_sec(0.5).x_xtra, terminal_sec(0.5).y_xtra, terminal_sec(0.5).z_xtra])
+                        origin = np.array([terminal_sec(0.5).x_xtra,
+                                           terminal_sec(0.5).y_xtra,
+                                           terminal_sec(0.5).z_xtra])
                         ds = [euclidean_distance(sec, origin) for sec in pick_from]
                         terminal_sec = pick_from[np.argmax(ds)]
 
-                apic_branch = get_branch_from_terminal(cell, terminal_sec, terminate_before_soma=True)
+                apic_branch = get_branch_from_terminal(
+                    cell, terminal_sec, terminate_before_soma=True
+                )
 
 
                 # -- apply geometric transformations --
@@ -804,7 +819,9 @@ def calculate_cell_threshold(cell: NeuronCell,
 
                 e_field_simp = []
                 for sec in simplified:
-                    e_field_simp.append([sec(0.5).Ex_xtra, sec(0.5).Ey_xtra, sec(0.5).Ez_xtra])
+                    e_field_simp.append([sec(0.5).Ex_xtra,
+                                         sec(0.5).Ey_xtra,
+                                         sec(0.5).Ez_xtra])
                 e_field_simp = np.array(e_field_simp)
 
                 np.save(save_dir+'e_field_simplified'+suffix, e_field_simp)

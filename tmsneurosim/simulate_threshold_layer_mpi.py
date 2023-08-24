@@ -378,7 +378,7 @@ def _worker(params,
     local_rec_tag = np.empty(1, dtype=np.int32)
 
     while True:
-        COMM.Recv([deploy, MPI.INT], source=0)
+        COMM.Recv([deploy, MPI.INT], source=0, tag=COMPUTE_TAG)
         if deploy == -1:
             break
         r = None
@@ -422,18 +422,20 @@ def _worker(params,
 
 
 def _distribute_initial_jobs(n: int, deploy: np.ndarray):
-    available = SIZE - 1
+    available = SIZE - 2
     size = n if n < available else available
     available_ranks = list(range(SIZE))
-    available_ranks.remove(0)
+    available_ranks.remove(MASTER_RANK)
+    available_ranks.remove(FILE_RANK)
+
     for i in range(size):
         deploy[:] = i
-        COMM.Send([deploy, MPI.INT], dest=available_ranks[i])
+        COMM.Send([deploy, MPI.INT], dest=available_ranks[i], tag=COMPUTE_TAG)
 
     if size < available:
         deploy[:] = -1
         for j in range(size, available):
-            COMM.Send([deploy, MPI.INT], dest=available_ranks[j])
+            COMM.Send([deploy, MPI.INT], dest=available_ranks[j], tag=COMPUTE_TAG)
         deploy[:] = size - 1
 
 

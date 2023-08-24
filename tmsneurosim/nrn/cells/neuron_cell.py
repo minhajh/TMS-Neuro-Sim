@@ -895,13 +895,14 @@ class NeuronCell:
 
         plt.tight_layout()
         if path is None:
-            plt.show()
+            pass
+            # plt.show()
         else:
             if background_transparent:
                 plt.savefig(path, dpi=1000, bbox_inches='tight', transparent="True", pad_inches=0)
             else:
                 plt.savefig(path, dpi=1000, bbox_inches='tight', pad_inches=0)
-        plt.close()
+        # plt.close()
 
     def write_stl(self, path: typing.Union[str, pathlib.Path]) -> None:
         """ Writes the sections of the cell as truncated cones to a stl ascii file.

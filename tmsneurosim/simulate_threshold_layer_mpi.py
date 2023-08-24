@@ -24,12 +24,13 @@ from tmsneurosim.nrn.simulation.simulation import WaveformType
 from tmsneurosim.nrn.simulation import Backend as N
 from tmsneurosim.nrn.cells.cell_modification_parameters.cell_modification_parameters import (
     CellModificationParameters, AxonModificationMode)
+from tmsneurosim.mpi import (
+    COMPUTE_TAG, FILE_TAG, END_TAG, MASTER_RANK, FILE_RANK, Recorder
+)
+
 
 WHITE_MATTER_SURFACE = 1001
 GRAY_MATTER_SURFACE = 1002
-
-COMPUTE_TAG = 0
-END_TAG = 99
 
 COMM = MPI.COMM_WORLD
 RANK = COMM.rank
@@ -145,7 +146,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                                       terminals_only=False,
                                       apic_branch_diam_scale=2.0,
                                       axon_branch_diam_scale=1.0,
-                                      es_scale=1.0) -> simnibs.Msh:
+                                      es_scale=1.0,
+                                      recorder: Recorder=None) -> simnibs.Msh:
     """
     Simulates the threshold of each neuron at each simulation element with all azimuthal rotations.
     :param layer: The cortical layer to place the neurons on.
@@ -171,6 +173,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
         for i in range(rotation_count):
             layer_meta_info.append((cell, i))
 
+    if recorder is not None:
+        recorder.init(len(cells), rotation_count, len(layer.elements))
 
     directions = layer.get_smoothed_normals()
     positions = layer.surface.elements_baricenters().value[layer.elements]
@@ -202,8 +206,10 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                 terminals_only=terminals_only)
 
     else:
-        if RANK == 0:
+        if RANK == MASTER_RANK:
             _master(total_sims, layer_results, layer_tags)
+        elif RANK == FILE_RANK:
+            _file(recorder)
         else:
             _worker(all_params,
                     record=record,
@@ -220,7 +226,8 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                     terminals_only=terminals_only,
                     apic_branch_diam_scale=apic_branch_diam_scale,
                     axon_branch_diam_scale=axon_branch_diam_scale,
-                    es_scale=es_scale)
+                    es_scale=es_scale,
+                    recorder=recorder)
 
     COMM.barrier()
 
@@ -321,6 +328,25 @@ def _master(n_parameter_sets, threshes, tags):
         pbar.update()
         complete += 1
 
+    done = 0
+    COMM.send(done, dest=1, tag=END_TAG)
+
+
+def _file(recorder):
+    while True:
+        s = MPI.Status()
+        COMM.Probe(status=s)
+        if s.tag == END_TAG:
+            break
+        var, shape, dtype = COMM.recv(source=s.source, tag=FILE_TAG)
+        if not os.path.exists(recorder.directory+var):
+            arr_s = s = (recorder.n_cells, recorder.n_rotations, recorder.n_locations, *shape)
+            fp = np.memmap(recorder.directory+var,
+                           dtype=dtype,
+                           mode='w+',
+                           shape=arr_s)
+            del fp
+
 
 def _worker(params,
             record=False,
@@ -337,7 +363,8 @@ def _worker(params,
             terminals_only=False,
             apic_branch_diam_scale=2.0,
             axon_branch_diam_scale=1.0,
-            es_scale=1.0):
+            es_scale=1.0,
+            recorder: Recorder=None):
     
     deploy = np.empty(1, dtype='i')
     counter = -1
@@ -378,7 +405,8 @@ def _worker(params,
                                                   terminals_only=terminals_only,
                                                   apic_branch_diam_scale=apic_branch_diam_scale,
                                                   axon_branch_diam_scale=axon_branch_diam_scale,
-                                                  es_scale=es_scale)
+                                                  es_scale=es_scale,
+                                                  recorder=recorder)
         gc.collect()
         local_rec_thresh[:] = threshold
         local_rec_tag[:] = tag
@@ -427,7 +455,8 @@ def calculate_cell_threshold(cell: NeuronCell,
                              terminals_only=False,
                              apic_branch_diam_scale=2.0,
                              axon_branch_diam_scale=1.0,
-                             es_scale=1.0) -> Tuple[float, int]:
+                             es_scale=1.0,
+                             recorder: Recorder=None) -> Tuple[float, int]:
     
     if np.any(np.isnan(direction)) or np.any(np.isnan(position)):
         return np.nan, 0
@@ -467,8 +496,8 @@ def calculate_cell_threshold(cell: NeuronCell,
         v_records = []
         # e_records = []
 
-        soma_record = h.Vector()
-        soma_record.record(cell.soma[0](0.5)._ref_v)
+        # soma_record = h.Vector()
+        # soma_record.record(cell.soma[0](0.5)._ref_v)
 
         axon_0 = h.Vector()
         axon_0.record(cell.axon[0](0.5)._ref_v)
@@ -520,30 +549,52 @@ def calculate_cell_threshold(cell: NeuronCell,
             t_pred = -v_rec[initiate_ind][t_min] / dv
             t_init = (t_min + t_pred) * 0.005
 
+
+        if False:
+            i, j, k = idx
+            save_dir = f"{directory}/{cell.__class__.__name__}/{cell.morphology_id:02d}/{j:02d}/{k:05d}/"
+            os.makedirs(save_dir, exist_ok=True)
+
+            init_sec = cell.terminals()[initiate_ind]
+            v_rec_term = h.Vector().record(init_sec(0.5)._ref_v)
+            v_rec_soma = h.Vector().record(cell.soma[0](0.5)._ref_v)
+            v_rec_apic = h.Vector().record()
+
+            for scale in [0.5, 0.6, 0.7, 0.8, 0.9, 1.0,
+                          1.1, 1.2, 1.3, 1.4, 1.5]:
+                pass
+                
+
         data = {
-            'soma_rec': np.array(soma_record),
+            #'soma_rec': np.array(soma_record),
             'soma_efield': np.array([cell.soma[0].Ex_xtra, cell.soma[0].Ey_xtra, cell.soma[0].Ez_xtra]),
-            'axon_0': np.array(axon_0),
-            'es': np.array(es),
+            #'axon_0': np.array(axon_0),
+            #'es': np.array(es),
             'threshold': threshold,
             'initiate_ind': initiate_ind,
-            't_init': t_init,
+            #'t_init': t_init,
             'position': position
         }
 
         if terminals_only:
-            data['terminal_coords'] = cell.terminal_coords()
-            terminal_efields = np.array([[t.Ex_xtra, t.Ey_xtra, t.Ez_xtra] for t in cell.terminals()])
-            data['terminal_efield'] = terminal_efields
+            if False:
+                data['terminal_coords'] = cell.terminal_coords()
+                terminal_efields = np.array([[t.Ex_xtra, t.Ey_xtra, t.Ez_xtra] for t in cell.terminals()])
+                data['terminal_efield'] = terminal_efields
 
         if record_v:
             data['v_rec_thresh'] = v_rec
 
+        if False:
+            i, j, k = idx
+            save_dir = f"{directory}/{cell.__class__.__name__}/{cell.morphology_id:02d}/{j:02d}/{k:05d}/"
+            os.makedirs(save_dir, exist_ok=True)
+            for key, value in data.items():
+                np.save(save_dir+key, value)
+        
         i, j, k = idx
-        save_dir = f"{directory}/{cell.__class__.__name__}/{cell.morphology_id:02d}/{j:02d}/{k:05d}/"
-        os.makedirs(save_dir, exist_ok=True)
         for key, value in data.items():
-            np.save(save_dir+key, value)
+            recorder.save(key, i, j, k, value)
 
         if amp_scale_range is not None:
             for scale in amp_scale_range:
@@ -594,31 +645,31 @@ def calculate_cell_threshold(cell: NeuronCell,
                         # terminals = cell.terminals()
                         decision_variable = cell.terminal_efield_inner_prod()
                         terminal_sec_ind = np.argmax(decision_variable)
-                        np.save(save_dir+'terminal_dec_var', decision_variable)
+                        # np.save(save_dir+'terminal_dec_var', decision_variable)
 
                     elif terminal_selection == 'min_ip':
                         # terminals = cell.terminals()
                         decision_variable = cell.terminal_efield_inner_prod()
                         terminal_sec_ind = np.argmin(decision_variable)
-                        np.save(save_dir+'terminal_dec_var', decision_variable)
+                        # np.save(save_dir+'terminal_dec_var', decision_variable)
 
                     elif terminal_selection == 'max_es':
                         # terminals = cell.terminals()
                         decision_variable = np.array([t.es_xtra for t in terminals])
                         terminal_sec_ind = np.argmax(decision_variable)
-                        np.save(save_dir+'terminal_dec_var', decision_variable)
+                        # np.save(save_dir+'terminal_dec_var', decision_variable)
 
                     elif terminal_selection == 'min_es':
                         # terminals = cell.terminals()
                         decision_variable = np.array([t.es_xtra for t in terminals])
                         terminal_sec_ind = np.argmin(decision_variable)
-                        np.save(save_dir+'terminal_dec_var', decision_variable)
+                        # np.save(save_dir+'terminal_dec_var', decision_variable)
 
                     elif terminal_selection == 'max_af':
                         # terminals = cell.terminals()
                         decision_variable = cell.terminal_activating_funcs()
                         terminal_sec_ind = np.argmax(decision_variable)
-                        np.save(save_dir+'terminal_dec_var', decision_variable)
+                        # np.save(save_dir+'terminal_dec_var', decision_variable)
 
                     elif terminal_selection == 'combined':
                         terminals = cell.terminals()

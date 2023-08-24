@@ -84,7 +84,8 @@ class Recorder:
             self.records[var][i, j, k, :] = data
 
     def close(self):
-        for k in self.records.keys():
+        keys = list(self.records.keys())
+        for k in keys:
             del self.records[k]
         comm.Barrier()
 

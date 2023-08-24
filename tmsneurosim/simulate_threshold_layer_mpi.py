@@ -340,12 +340,13 @@ def _file(recorder):
             break
         var, shape, dtype = COMM.recv(source=s.source, tag=FILE_TAG)
         if not os.path.exists(recorder.directory+'/'+var):
-            arr_s = s = (recorder.n_cells, recorder.n_rotations, recorder.n_locations, *shape)
+            arr_s = (recorder.n_cells, recorder.n_rotations, recorder.n_locations, *shape)
             fp = np.memmap(recorder.directory+'/'+var,
                            dtype=dtype,
                            mode='w+',
                            shape=arr_s)
             del fp
+        COMM.send(0, dest=s.source, tag=FILE_TAG)
 
 
 def _worker(params,

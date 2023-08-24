@@ -66,6 +66,7 @@ class Recorder:
             else:
                 d = [var, tuple(data.shape), data.dtype]
                 comm.send(d, dest=FILE_RANK, tag=FILE_TAG)
+                _ = comm.recv(source=FILE_RANK, tag=FILE_TAG)
                 fp = np.memmap(
                     self.directory+'/'+var,
                     dtype=data.dtype,

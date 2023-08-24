@@ -341,8 +341,7 @@ def _file(recorder: Recorder):
             COMM.recv(source=s.source, tag=FILE_TAG)
             break
         var, dtype, shape = COMM.recv(source=s.source, tag=FILE_TAG)
-        if not os.path.exists(f'{recorder.directory}/{var}'):
-            recorder.make(var, dtype, shape)
+        recorder.make(var, dtype, shape)
         COMM.send(0, dest=s.source, tag=FILE_TAG)
 
 

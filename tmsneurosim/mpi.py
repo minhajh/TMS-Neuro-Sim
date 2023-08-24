@@ -85,16 +85,17 @@ class Recorder:
         comm.Barrier()
 
     def make(self, var, dtype, shape):
-        s = (self.n_cells, self.n_rotations, self.n_locations, *shape)
-        fp = np.memmap(
-            self.directory+'/'+var,
-            dtype=dtype,
-            mode='w+',
-            shape=s)
-        del fp
-        meta = {'shape':s, 'dtype':dtype}
-        with open(f'{self.directory}/{var}.meta', 'wb') as f:
-            pickle.dump(meta, f)
+        path = self.directory+'/'+var
+        if not os.path.exists(path):
+            s = (self.n_cells, self.n_rotations, self.n_locations, *shape)
+            fp = np.memmap(path,
+                           dtype=dtype,
+                           mode='w+',
+                           shape=s)
+            del fp
+            meta = {'shape':s, 'dtype':dtype}
+            with open(f'{self.directory}/{var}.meta', 'wb') as f:
+                pickle.dump(meta, f)
 
     @staticmethod
     def load(directory, var):

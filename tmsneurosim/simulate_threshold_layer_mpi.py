@@ -3,6 +3,7 @@ import os
 from typing import Tuple, List
 import pickle
 import random
+import sys
 
 import numpy as np
 import simnibs
@@ -25,7 +26,7 @@ from tmsneurosim.nrn.simulation import Backend as N
 from tmsneurosim.nrn.cells.cell_modification_parameters.cell_modification_parameters import (
     CellModificationParameters, AxonModificationMode)
 from tmsneurosim.mpi import (
-    COMPUTE_TAG, FILE_TAG, END_TAG, MASTER_RANK, FILE_RANK, Recorder
+    COMPUTE_TAG, FILE_TAG, END_TAG, MASTER_RANK, FILE_RANK, Recorder, print_immediately
 )
 
 
@@ -312,7 +313,7 @@ def _master(n_parameter_sets, threshes, tags):
     # do rest
     while complete < n_parameter_sets:
         s = MPI.Status()
-        COMM.Probe(status=s)
+        COMM.Probe(status=s, tag=COMPUTE_TAG)
         COMM.Recv([param_id, MPI.INT32_T], source=s.source)
         COMM.Recv([local_rec_thresh, MPI.DOUBLE], source=s.source,
                   tag=COMPUTE_TAG)
@@ -329,14 +330,15 @@ def _master(n_parameter_sets, threshes, tags):
         complete += 1
 
     done = 0
-    COMM.send(done, dest=1, tag=END_TAG)
+    COMM.send(done, dest=FILE_RANK, tag=FILE_TAG)
 
 
 def _file(recorder):
     while True:
         s = MPI.Status()
-        COMM.Probe(status=s)
-        if s.tag == END_TAG:
+        COMM.Probe(status=s, tag=FILE_TAG)
+        if s.source == MASTER_RANK:
+            COMM.recv(source=s.source, tag=FILE_TAG)
             break
         var, shape, dtype = COMM.recv(source=s.source, tag=FILE_TAG)
         if not os.path.exists(recorder.directory+'/'+var):
@@ -412,7 +414,7 @@ def _worker(params,
         local_rec_thresh[:] = threshold
         local_rec_tag[:] = tag
         param_id[:] = idx
-        COMM.Send([param_id, MPI.INT32_T], dest=0)
+        COMM.Send([param_id, MPI.INT32_T], dest=0, tag=COMPUTE_TAG)
         COMM.Send([local_rec_thresh, MPI.DOUBLE], dest=0,
                   tag=COMPUTE_TAG)
         COMM.Send([local_rec_tag, MPI.INT32_T], dest=0,

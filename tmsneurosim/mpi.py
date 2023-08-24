@@ -1,4 +1,5 @@
 import os
+import sys
 
 from mpi4py import MPI
 import numpy as np
@@ -12,6 +13,12 @@ FILE_RANK = 1
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
+
+
+def print_immediately(*txt):
+    print(*txt)
+    sys.stdout.flush()
+
 
 class Recorder:
     def __init__(self, directory, variables=None):
@@ -52,6 +59,7 @@ class Recorder:
             comm.Barrier()
 
     def save(self, var, i, j, k, data):
+        data = np.atleast_1d(data)
         try:
             self.records[var][i, j, k, :] = data
         except KeyError:

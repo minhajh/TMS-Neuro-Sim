@@ -5,6 +5,9 @@ nrn/tmp/*
 examples/main.py
 tmsneurosim/nrn/cells/cells_hoc/L5_TTPC2_cADpyr/morphology/[0-9]*?/*
 tmsneurosim/nrn/cells/cells_hoc/L23_PC_cADpyr/morphology/[0-9]*?/*
+*.sh
+*.err
+*.out
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

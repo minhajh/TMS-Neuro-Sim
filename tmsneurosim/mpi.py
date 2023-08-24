@@ -1,5 +1,6 @@
 import os
 import sys
+import pickle
 
 from mpi4py import MPI
 import numpy as np
@@ -40,13 +41,7 @@ class Recorder:
         if self.variables is not None:
             if rank == MASTER_RANK:
                 for var, dtype, shape in self.variables:
-                    s = (n_cells, n_rotations, n_locations, *shape)
-                    fp = np.memmap(
-                        self.directory+'/'+var,
-                        dtype=dtype,
-                        mode='w+',
-                        shape=s)
-                    del fp
+                    self.make(var, dtype, shape)
             comm.Barrier()
             for var, dtype, shape in self.variables:
                 s = (n_cells, n_rotations, n_locations, *shape)
@@ -72,7 +67,7 @@ class Recorder:
                     shape=s)
                 self.records[var] = fp
             else:
-                d = [var, tuple(data.shape), data.dtype]
+                d = [var, data.dtype, tuple(data.shape)]
                 comm.send(d, dest=FILE_RANK, tag=FILE_TAG)
                 _ = comm.recv(source=FILE_RANK, tag=FILE_TAG)
                 fp = np.memmap(
@@ -88,6 +83,27 @@ class Recorder:
         for k in keys:
             del self.records[k]
         comm.Barrier()
+
+    def make(self, var, dtype, shape):
+        s = (self.n_cells, self.n_rotations, self.n_locations, *shape)
+        fp = np.memmap(
+            self.directory+'/'+var,
+            dtype=dtype,
+            mode='w+',
+            shape=s)
+        del fp
+        meta = {'shape':s, 'dtype':dtype}
+        with open(f'{self.directory}/{var}.meta', 'wb') as f:
+            pickle.dump(meta, f)
+
+    @staticmethod
+    def load(directory, var):
+        path = f'{directory}/{var}'
+        mpath = f'{directory}/{var}.meta'
+        with open(mpath, 'rb') as f:
+            meta = pickle.load(f)
+        mm = np.memmap(path, dtype=meta['dtype'], mode='r', shape=meta['shape'])
+        return mm
 
 
 class MPIRecorder:

@@ -333,21 +333,16 @@ def _master(n_parameter_sets, threshes, tags):
     COMM.send(done, dest=FILE_RANK, tag=FILE_TAG)
 
 
-def _file(recorder):
+def _file(recorder: Recorder):
     while True:
         s = MPI.Status()
         COMM.Probe(status=s, tag=FILE_TAG)
         if s.source == MASTER_RANK:
             COMM.recv(source=s.source, tag=FILE_TAG)
             break
-        var, shape, dtype = COMM.recv(source=s.source, tag=FILE_TAG)
-        if not os.path.exists(recorder.directory+'/'+var):
-            arr_s = (recorder.n_cells, recorder.n_rotations, recorder.n_locations, *shape)
-            fp = np.memmap(recorder.directory+'/'+var,
-                           dtype=dtype,
-                           mode='w+',
-                           shape=arr_s)
-            del fp
+        var, dtype, shape = COMM.recv(source=s.source, tag=FILE_TAG)
+        if not os.path.exists(f'{recorder.directory}/{var}'):
+            recorder.make(var, dtype, shape)
         COMM.send(0, dest=s.source, tag=FILE_TAG)
 
 

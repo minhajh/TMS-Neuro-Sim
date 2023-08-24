@@ -35,7 +35,7 @@ class Recorder:
                 for var, dtype, shape in self.variables:
                     s = (n_cells, n_rotations, n_locations, *shape)
                     fp = np.memmap(
-                        self.directory+var,
+                        self.directory+'/'+var,
                         dtype=dtype,
                         mode='w+',
                         shape=s)
@@ -44,7 +44,7 @@ class Recorder:
             for var, dtype, shape in self.variables:
                 s = (n_cells, n_rotations, n_locations, *shape)
                 fp = np.memmap(
-                    self.directory+var,
+                    self.directory+'/'+var,
                     dtype=dtype,
                     mode='r+',
                     shape=s)
@@ -56,9 +56,9 @@ class Recorder:
             self.records[var][i, j, k, :] = data
         except KeyError:
             s = (self.n_cells, self.n_rotations, self.n_locations, *data.shape)
-            if os.path.exists(self.directory+var):
+            if os.path.exists(self.directory+'/'+var):
                 fp = np.memmap(
-                    self.directory+var,
+                    self.directory+'/'+var,
                     dtype=data.dtype,
                     mode='r+',
                     shape=s)
@@ -67,7 +67,7 @@ class Recorder:
                 d = [var, tuple(data.shape), data.dtype]
                 comm.send(d, dest=FILE_RANK, tag=FILE_TAG)
                 fp = np.memmap(
-                    self.directory+var,
+                    self.directory+'/'+var,
                     dtype=data.dtype,
                     mode='r+',
                     shape=s)

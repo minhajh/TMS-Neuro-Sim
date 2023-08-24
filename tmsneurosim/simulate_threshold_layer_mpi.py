@@ -339,9 +339,9 @@ def _file(recorder):
         if s.tag == END_TAG:
             break
         var, shape, dtype = COMM.recv(source=s.source, tag=FILE_TAG)
-        if not os.path.exists(recorder.directory+var):
+        if not os.path.exists(recorder.directory+'/'+var):
             arr_s = s = (recorder.n_cells, recorder.n_rotations, recorder.n_locations, *shape)
-            fp = np.memmap(recorder.directory+var,
+            fp = np.memmap(recorder.directory+'/'+var,
                            dtype=dtype,
                            mode='w+',
                            shape=arr_s)

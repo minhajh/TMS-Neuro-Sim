@@ -314,7 +314,7 @@ def _master(n_parameter_sets, threshes, tags):
     while complete < n_parameter_sets:
         s = MPI.Status()
         COMM.Probe(status=s, tag=COMPUTE_TAG)
-        COMM.Recv([param_id, MPI.INT32_T], source=s.source)
+        COMM.Recv([param_id, MPI.INT32_T], source=s.source, tag=COMPUTE_TAG)
         COMM.Recv([local_rec_thresh, MPI.DOUBLE], source=s.source,
                   tag=COMPUTE_TAG)
         threshes[tuple(param_id)] = local_rec_thresh
@@ -323,9 +323,9 @@ def _master(n_parameter_sets, threshes, tags):
         tags[tuple(param_id)] = local_rec_tag
         if deploy < n_parameter_sets - 1:
             deploy += 1
-            COMM.Send([deploy, MPI.INT], dest=s.source)
+            COMM.Send([deploy, MPI.INT], dest=s.source, tag=COMPUTE_TAG)
         else:
-            COMM.Send([finish, MPI.INT], dest=s.source)
+            COMM.Send([finish, MPI.INT], dest=s.source, tag=COMPUTE_TAG)
         pbar.update()
         complete += 1
 

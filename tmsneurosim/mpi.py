@@ -53,7 +53,6 @@ class Recorder:
                 mode='r+',
                 shape=data.shape,
                 offset=self.offset(data, i, j, k))
-            fp[:] = data
         else:
             d = [var, data.dtype, tuple(data.shape)]
             comm.send(d, dest=FILE_RANK, tag=FILE_TAG)
@@ -66,7 +65,8 @@ class Recorder:
                 mode='r+',
                 shape=data.shape,
                 offset=self.offset(data, i, j, k))
-            fp[:] = data
+        fp[:] = data
+        fp.flush()
 
     def close(self):
         comm.Barrier()

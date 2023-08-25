@@ -57,6 +57,7 @@ class Recorder:
         data = np.atleast_1d(data)
         try:
             self.records[var][i, j, k, :] = data
+            self.records[var].flush()
         except KeyError:
             s = (self.n_cells, self.n_rotations, self.n_locations, *data.shape)
             if os.path.exists(self.directory+'/'+var):
@@ -79,6 +80,7 @@ class Recorder:
                     shape=s)
                 self.records[var] = fp
             self.records[var][i, j, k, :] = data
+            self.records[var].flush()
 
     def close(self):
         keys = list(self.records.keys())

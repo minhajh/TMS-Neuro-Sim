@@ -45,7 +45,9 @@ class Recorder:
         comm.Barrier()
 
     def save(self, var, i, j, k, data):
+
         data = np.atleast_1d(data).flatten()
+
         if os.path.exists(self.directory+'/'+var):
             fp = np.memmap(
                 self.directory+'/'+var,
@@ -65,8 +67,10 @@ class Recorder:
                 mode='r+',
                 shape=data.shape,
                 offset=self.offset(data, i, j, k))
+            
         fp[:] = data
         fp.flush()
+        del fp
 
     def close(self):
         comm.Barrier()

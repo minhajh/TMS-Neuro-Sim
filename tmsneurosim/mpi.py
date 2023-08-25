@@ -45,7 +45,7 @@ class Recorder:
         comm.Barrier()
 
     def save(self, var, i, j, k, data):
-        data = np.atleast_1d(data)
+        data = np.atleast_1d(data).flatten()
         if os.path.exists(self.directory+'/'+var):
             fp = np.memmap(
                 self.directory+'/'+var,
@@ -73,7 +73,13 @@ class Recorder:
 
     def offset(self, data, i, j, k):
         B = data.dtype.itemsize
-        offset = B * (self.n_cells * self.n_rotations * i + self.n_rotations * j + k)
+        dl = np.prod(data.shape)
+        N = np.array([self.n_cells, self.n_rotations, self.n_locations, dl])
+        n = [i, j, k, 0]
+        offset = 0
+        for ii in range(len(n)):
+            offset += n[ii]*np.prod(N[ii+1:])
+        offset = B * offset
         return offset
 
     def make(self, var, dtype, shape):

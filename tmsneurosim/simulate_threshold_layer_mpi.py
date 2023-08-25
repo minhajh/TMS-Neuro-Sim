@@ -459,9 +459,11 @@ def calculate_cell_threshold(cell: NeuronCell,
     
     if np.any(np.isnan(direction)) or np.any(np.isnan(position)):
         return np.nan, 0
+        
     cell.load()
     simulation = EFieldSimulation(cell, waveform_type)
     simulation.attach()
+    
     segment_points_mm = cell.get_segment_coordinates() * 0.001
     azimuthal_rotation = Rotation.from_euler('z', azimuthal_rotation, degrees=True)
     rotation = rotation_from_vectors(cell.direction, direction)
@@ -565,13 +567,9 @@ def calculate_cell_threshold(cell: NeuronCell,
                 
 
         data = {
-            #'soma_rec': np.array(soma_record),
             'soma_efield': np.array([cell.soma[0].Ex_xtra, cell.soma[0].Ey_xtra, cell.soma[0].Ez_xtra]),
-            #'axon_0': np.array(axon_0),
-            #'es': np.array(es),
             'threshold': threshold,
             'initiate_ind': initiate_ind,
-            #'t_init': t_init,
             'position': position
         }
 
@@ -889,8 +887,9 @@ def calculate_cell_threshold(cell: NeuronCell,
                 threshold_reduced = simulation.find_threshold_factor()
                 np.save(save_dir+'threshold_reduced'+suffix, threshold_reduced)
             
-
     simulation.detach()
+    cell.unload()
+    gc.collect()
     return threshold, int(''.join(map(str, np.unique(tetrahedron_tags)))[::-1])
 
 

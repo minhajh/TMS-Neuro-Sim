@@ -15,6 +15,10 @@ FILE_RANK = 1
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 
+IS_COMPUTE_RANK = (rank != MASTER_RANK)
+
+record_comm = comm.Split(color=int(IS_COMPUTE_RANK))
+
 
 def print_immediately(*txt):
     print(*txt)
@@ -110,8 +114,69 @@ class Recorder:
 
 
 class MPIRecorder:
-    def __init__(self, directory):
+    
+    def __init__(self, directory, variables):
         self.directory = directory
+        
         if rank == 0:
             os.makedirs(directory, exist_ok=True)
+            
+        comm.Barrier()
+        
         self.amode = MPI.MODE_WRONLY|MPI.MODE_CREATE
+        self.var_names = variables
+        self.variables = {}
+        if IS_COMPUTE_RANK:
+            for var in variables:
+                fh = MPI.File.Open(record_comm, f'{directory}/{var}', self.amode)
+                self.variables[var] = fh
+                
+        self.n_cells : int = None
+        self.n_rotations : int = None
+        self.n_locations : int = None
+        
+    def init(self, n_cells, n_rotations, n_locations):
+
+        self.n_cells = n_cells
+        self.n_rotations = n_rotations
+        self.n_locations = n_locations
+        
+        comm.Barrier()
+                
+    def offset(self, data, i, j, k):
+        B = data.dtype.itemsize
+        dl = np.prod(data.shape)
+        N = np.array([self.n_cells, self.n_rotations, self.n_locations, dl])
+        n = [i, j, k, 0]
+        offset = 0
+        for ii in range(len(n)):
+            offset += n[ii]*np.prod(N[ii+1:])
+        offset = B * offset
+        return offset
+        
+    def save(self, var, i, j, k, data, dtype=np.float32):
+        data = np.atleast_1d(np.asarray(data)).flatten()
+
+        if not os.path.exists(f'{self.directory}/{var}.meta'):
+            s = (self.n_cells, self.n_rotations, self.n_locations, *data.shape)
+            meta = {'shape':s, 'dtype':data.dtype}
+            with open(f'{self.directory}/{var}.meta', 'wb') as f:
+                pickle.dump(meta, f)
+                
+        offset = self.offset(data, i, j, k)
+        self.variables[var].Write_at(offset, data)
+        
+    def close(self):
+        if IS_COMPUTE_RANK:
+            for var in self.var_names:
+                self.variables[var].Close()
+        comm.Barrier()
+        
+        
+def load_data(directory, var):
+    path = f'{directory}/{var}'
+    mpath = f'{directory}/{var}.meta'
+    with open(mpath, 'rb') as f:
+        meta = pickle.load(f)
+    mm = np.memmap(path, dtype=meta['dtype'], mode='r', shape=meta['shape'])
+    return mm

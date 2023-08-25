@@ -48,9 +48,9 @@ class ThresholdFactorSimulation(Simulation):
             raise ValueError('Simulation is not attached')
         if not self.neuron_cell.loaded:
             raise ValueError('Neuron cell is not loaded')
-        low = 0
+        low = 0.0
         high = 1e5
-        amplitude = 100
+        amplitude = 100.0
         epsilon = 1e-8 + 5e-2
 
         while low <= 0 or high >= 1e5:

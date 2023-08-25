@@ -582,7 +582,7 @@ def calculate_cell_threshold(cell: NeuronCell,
         if record_v:
             data['v_rec_thresh'] = v_rec
 
-        if False:
+        if True:
             i, j, k = idx
             save_dir = f"{directory}/{cell.__class__.__name__}/{cell.morphology_id:02d}/{j:02d}/{k:05d}/"
             os.makedirs(save_dir, exist_ok=True)

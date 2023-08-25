@@ -73,7 +73,7 @@ class Recorder:
 
     def offset(self, data, i, j, k):
         B = data.dtype.itemsize
-        offset = B * (self.n_cells * self.n_rotations * i + self.n_rotation * j + k)
+        offset = B * (self.n_cells * self.n_rotations * i + self.n_rotations * j + k)
         return offset
 
     def make(self, var, dtype, shape):

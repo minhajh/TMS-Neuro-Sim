@@ -30,7 +30,6 @@ class Recorder:
         self.n_cells : int = None
         self.n_rotations : int = None
         self.n_locations : int = None
-        self.records = {}
 
     def init(self, n_cells, n_rotations, n_locations):
 
@@ -42,51 +41,40 @@ class Recorder:
             if rank == MASTER_RANK:
                 for var, dtype, shape in self.variables:
                     self.make(var, dtype, shape)
-            comm.Barrier()
-            for var, dtype, shape in self.variables:
-                s = (n_cells, n_rotations, n_locations, *shape)
-                fp = np.memmap(
-                    self.directory+'/'+var,
-                    dtype=dtype,
-                    mode='r+',
-                    shape=s)
-                self.records[var] = fp
-            comm.Barrier()
+
+        comm.Barrier()
 
     def save(self, var, i, j, k, data):
         data = np.atleast_1d(data)
-        try:
-            self.records[var][i, j, k, :] = data
-            self.records[var].flush()
-        except KeyError:
-            s = (self.n_cells, self.n_rotations, self.n_locations, *data.shape)
-            if os.path.exists(self.directory+'/'+var):
-                fp = np.memmap(
-                    self.directory+'/'+var,
-                    dtype=data.dtype,
-                    mode='r+',
-                    shape=s)
-                self.records[var] = fp
-            else:
-                d = [var, data.dtype, tuple(data.shape)]
-                comm.send(d, dest=FILE_RANK, tag=FILE_TAG)
-                _ = comm.recv(source=FILE_RANK, tag=FILE_TAG)
-                while not os.path.exists(self.directory+'/'+var):
-                    pass
-                fp = np.memmap(
-                    self.directory+'/'+var,
-                    dtype=data.dtype,
-                    mode='r+',
-                    shape=s)
-                self.records[var] = fp
-            self.records[var][i, j, k, :] = data
-            self.records[var].flush()
+        if os.path.exists(self.directory+'/'+var):
+            fp = np.memmap(
+                self.directory+'/'+var,
+                dtype=data.dtype,
+                mode='r+',
+                shape=data.shape,
+                offset=self.offset(data, i, j, k))
+            fp[:] = data
+        else:
+            d = [var, data.dtype, tuple(data.shape)]
+            comm.send(d, dest=FILE_RANK, tag=FILE_TAG)
+            _ = comm.recv(source=FILE_RANK, tag=FILE_TAG)
+            while not os.path.exists(self.directory+'/'+var):
+                pass
+            fp = np.memmap(
+                self.directory+'/'+var,
+                dtype=data.dtype,
+                mode='r+',
+                shape=data.shape,
+                offset=self.offset(data, i, j, k))
+            fp[:] = data
 
     def close(self):
-        keys = list(self.records.keys())
-        for k in keys:
-            del self.records[k]
         comm.Barrier()
+
+    def offset(self, data, i, j, k):
+        B = data.dtype.itemsize
+        offset = B * (self.n_cells * self.n_rotations * i + self.n_rotation * j + k)
+        return offset
 
     def make(self, var, dtype, shape):
         path = self.directory+'/'+var

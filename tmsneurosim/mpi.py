@@ -126,6 +126,7 @@ class MPIRecorder:
         self.amode = MPI.MODE_WRONLY|MPI.MODE_CREATE
         self.var_names = variables
         self.variables = {}
+        
         if IS_COMPUTE_RANK:
             for var in variables:
                 fh = MPI.File.Open(record_comm, f'{directory}/{var}', self.amode)
@@ -154,8 +155,8 @@ class MPIRecorder:
         offset = B * offset
         return offset
         
-    def save(self, var, i, j, k, data, dtype=np.float32):
-        data = np.atleast_1d(np.asarray(data)).flatten()
+    def save(self, var, i, j, k, data, dtype=None):
+        data = np.atleast_1d(np.asarray(data, dtype=dtype)).flatten()
 
         if not os.path.exists(f'{self.directory}/{var}.meta'):
             s = (self.n_cells, self.n_rotations, self.n_locations, *data.shape)

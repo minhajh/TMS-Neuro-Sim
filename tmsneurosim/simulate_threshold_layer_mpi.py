@@ -1,9 +1,7 @@
 import gc
 import os
 from typing import Tuple, List
-import pickle
 import random
-import sys
 
 import numpy as np
 import simnibs
@@ -15,18 +13,14 @@ from mpi4py import MPI
 from neuron import h
 from sklearn.preprocessing import normalize
 
-
-import matplotlib.pyplot as plt
-
 from tmsneurosim.cortical_layer import CorticalLayer
 from tmsneurosim.nrn.cells import NeuronCell
 from tmsneurosim.nrn.simulation.e_field_simulation import EFieldSimulation
 from tmsneurosim.nrn.simulation.simulation import WaveformType
 from tmsneurosim.nrn.simulation import Backend as N
-from tmsneurosim.nrn.cells.cell_modification_parameters.cell_modification_parameters import (
-    CellModificationParameters, AxonModificationMode)
+
 from tmsneurosim.mpi import (
-    COMPUTE_TAG, FILE_TAG, END_TAG, MASTER_RANK, FILE_RANK, Recorder, print_immediately
+    COMPUTE_TAG, FILE_TAG, MASTER_RANK, FILE_RANK, Recorder, MPIRecorder
 )
 
 
@@ -50,6 +44,7 @@ def get_branch_from_terminal(cell, terminal_sec, terminate_before_soma=False):
         branch.append(sref.sec)
     return branch
 
+
 def get_branch_to_branch(cell, terminal_sec, adjacency):
     branch = []
     sref = h.SectionRef(terminal_sec)
@@ -64,6 +59,7 @@ def get_branch_to_branch(cell, terminal_sec, adjacency):
                 break
     return branch
 
+
 def full_branch(cell, terminal_sec, adjacency):
     main_branch = get_branch_from_terminal(cell, terminal_sec)
     aux = []
@@ -73,8 +69,10 @@ def full_branch(cell, terminal_sec, adjacency):
             aux += aux_branch
     return main_branch + aux
 
+
 def min_max_normalize(v):
     return -1 + 2*((v - v.min()) / (v.max() - v.min()))
+
 
 def make_nn_input(cell, neg=False):
     terminals = cell.terminals()
@@ -148,7 +146,7 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
                                       apic_branch_diam_scale=2.0,
                                       axon_branch_diam_scale=1.0,
                                       es_scale=1.0,
-                                      recorder: Recorder=None) -> simnibs.Msh:
+                                      recorder: MPIRecorder=None) -> simnibs.Msh:
     """
     Simulates the threshold of each neuron at each simulation element with all azimuthal rotations.
     :param layer: The cortical layer to place the neurons on.
@@ -209,8 +207,6 @@ def simulate_combined_threshold_layer(layer: CorticalLayer,
     else:
         if RANK == MASTER_RANK:
             _master(total_sims, layer_results, layer_tags)
-        elif RANK == FILE_RANK:
-            _file(recorder)
         else:
             _worker(all_params,
                     record=record,

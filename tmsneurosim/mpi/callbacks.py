@@ -261,7 +261,7 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
         simulation.apply_e_field(transformed_e_field)
 
         v_rec_axon = h.Vector()
-        v_rec_axon.record(cell.ceterminals()[initiate_ind](0.5)._ref_v)
+        v_rec_axon.record(cell.terminals()[initiate_ind](0.5)._ref_v)
 
         for scale in self.amp_scale_range:
             simulation.simulate(scale*threshold, reinit=True)

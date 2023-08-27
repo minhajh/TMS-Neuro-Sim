@@ -14,14 +14,18 @@ class ThresholdFactorSimulation(Simulation):
     def __init__(self, neuron_cell: NeuronCell, waveform_type: WaveformType):
         super().__init__(neuron_cell, waveform_type)
 
-    def simulate(self, stimulation_amplitude: float, reinit=False):
+    def simulate(self, stimulation_amplitude: float, reinit=False, init_record=True, init_state=None):
         """
         Executes a NEURON simulation with the submitted amplitude as the scaling factor for the E-field.
         :param stimulation_amplitude:
         :return:
         """
+        if init_state is not None:
+            self.init_state = init_state
+        
         if reinit:
             self.init_state = None
+            
         if self.init_state is None:
             h.celsius = self.simulation_temperature
             h.dt = self.simulation_time_step
@@ -31,7 +35,10 @@ class ThresholdFactorSimulation(Simulation):
             self.init_state.save()
         else:
             self.init_state.restore()
-
+                        
+        if init_record:
+            h.frecord_init()
+                        
         waveform_vector = h.Vector(self.waveform * stimulation_amplitude)
         waveform_time_vector = h.Vector(self.waveform_time)
 
@@ -75,4 +82,5 @@ class ThresholdFactorSimulation(Simulation):
             else:
                 low = amplitude
             amplitude = (high + low) / 2
+            
         return high

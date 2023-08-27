@@ -105,6 +105,7 @@ class Simulation:
             for segment in section:
                 recording_netcon = h.NetCon(segment._ref_v, None, sec=section)
                 recording_netcon.threshold = self.simulation_threshold
+                recording_netcon.delay = 0
                 recording_netcon.record(self._action_potentials, self._action_potentials_recording_ids, i)
                 self.netcons.append(recording_netcon)
 

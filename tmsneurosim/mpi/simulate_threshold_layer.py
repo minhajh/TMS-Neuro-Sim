@@ -271,7 +271,6 @@ def calculate_cell_threshold(
     simulation.apply_e_field(transformed_e_field)
     threshold = simulation.find_threshold_factor()
     simulation.detach()
-    cell.unload()
     gc.collect()
     
     callbacks.call_hook(
@@ -284,6 +283,7 @@ def calculate_cell_threshold(
         idx
     )
 
+    cell.unload()
     gc.collect()
             
     return threshold, int(''.join(map(str, np.unique(tetrahedron_tags)))[::-1])

@@ -139,8 +139,6 @@ class ThresholdDataRecorder(Callback):
             threshold,
             idx) -> None:
 
-        cell.unload()
-        cell.load()
         simulation = EFieldSimulation(cell, waveform_type)
         simulation.apply_e_field(transformed_e_field)
 

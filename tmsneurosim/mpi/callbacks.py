@@ -190,12 +190,14 @@ class ThresholdCallback(Callback):
 class ThresholdDataRecorder(ThresholdCallback):
     def __init__(self,
                  directory,
-                 variables=['soma_efield',
-                            'threshold',
-                            'initiate_ind',
-                            'position'],
                  terminals_only=True,
                  t_init=False):
+        variables = [
+            'soma_efield',
+            'threshold',
+            'initiate_ind',
+            'position'
+        ]
         super().__init__(directory, variables, terminals_only)
         self.t_init = t_init
         if t_init:
@@ -238,7 +240,7 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
         super().__init__(directory, variables=None, terminals_only=True)
         self.amp_scale_range = amp_scale_range
         for scale in self.amp_scale_range:
-            self.make_record(f'v_axon_{scale:.1f}')
+            self.make_record(f'v_axon_{scale:.2f}')
 
     def post_threshold(
             self,
@@ -263,7 +265,7 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
 
         for scale in self.amp_scale_range:
             simulation.simulate(scale*threshold, reinit=True)
-            self.save(f'v_axon_{scale:.1f}', i, j, k, np.array(v_rec_axon))
+            self.save(f'v_axon_{scale:.2f}', i, j, k, np.array(v_rec_axon))
 
 
 def make_nn_input(cell, neg=False):

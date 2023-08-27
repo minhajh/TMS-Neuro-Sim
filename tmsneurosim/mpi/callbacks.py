@@ -64,6 +64,10 @@ class CallbackList:
         for c in self.callbacks:
             c.post_threshold(cell, waveform_type, transformed_e_field, threshold)
 
+    def close(self):
+        for c in self:
+            c.close()
+
     def __iter__(self):
         return iter(self.callbacks)
 

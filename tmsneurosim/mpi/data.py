@@ -117,7 +117,7 @@ class Recorder:
 class MPIRecorder:
     
     def __init__(self, directory, variables: List[str] = None):
-        self.directory = directory
+        self.directory = str(directory)
         
         if rank == 0:
             os.makedirs(directory, exist_ok=True)

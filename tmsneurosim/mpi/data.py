@@ -156,6 +156,7 @@ class MPIRecorder:
         return offset
         
     def save(self, var, i, j, k, data, dtype=None):
+        data = np.atleast_1d(data)
         shape = data.shape
         data = np.atleast_1d(np.asarray(data, dtype=dtype)).flatten()
 

@@ -19,7 +19,7 @@ from tmsneurosim.nrn.simulation.e_field_simulation import EFieldSimulation
 from tmsneurosim.nrn.simulation.simulation import WaveformType
 from tmsneurosim.nrn.simulation import Backend as N
 
-from tmsneurosim.mpi import (
+from tmsneurosim.mpi_ import (
     COMPUTE_TAG, FILE_TAG, MASTER_RANK, FILE_RANK, Recorder, MPIRecorder
 )
 

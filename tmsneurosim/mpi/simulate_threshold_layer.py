@@ -217,11 +217,10 @@ def _worker(params,
 
 
 def _distribute_initial_jobs(n: int, deploy: np.ndarray):
-    available = SIZE - 2
+    available = SIZE - 1
     size = n if n < available else available
     available_ranks = list(range(SIZE))
     available_ranks.remove(MASTER_RANK)
-    available_ranks.remove(FILE_RANK)
 
     for i in range(size):
         deploy[:] = i

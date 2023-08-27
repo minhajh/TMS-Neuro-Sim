@@ -169,12 +169,12 @@ class ThresholdDataRecorder(Callback):
                 if t_pred < t_test:
                     initiate_ind = iind
                     t_test = t_pred
-            t_init = (t_min + t_test) * 0.005
+            t_init = (t_min + t_test) * N.dt
         else:
             initiate_ind = initiate_inds[0]
             dv = v_rec[initiate_ind][t_min+1] - v_rec[initiate_ind][t_min-1]
             t_pred = -v_rec[initiate_ind][t_min] / dv
-            t_init = (t_min + t_pred) * 0.005
+            t_init = (t_min + t_pred) * N.dt
 
         data = {
             'soma_efield': np.array([cell.soma[0].Ex_xtra,

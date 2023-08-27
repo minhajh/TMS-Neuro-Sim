@@ -60,9 +60,24 @@ class CallbackList:
         for c in self.callbacks:
             c.init(n_cells, n_rotations, n_locations)
 
-    def post_threshold(self, cell, waveform_type, transformed_e_field, threshold):
+    def call_hook(
+            self,
+            hook,
+            cell,
+            waveform_type,
+            position,
+            transformed_e_field,
+            threshold,
+            idx):
         for c in self.callbacks:
-            c.post_threshold(cell, waveform_type, transformed_e_field, threshold)
+            c.call_hook(
+                hook,
+                cell,
+                waveform_type,
+                position,
+                transformed_e_field,
+                threshold,
+                idx)
 
     def close(self):
         for c in self:

@@ -310,9 +310,3 @@ def rotation_from_vectors(
         kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
         rotation = Rotation.from_matrix(np.eye(3) + kmat + kmat.dot(kmat) * ((1 - c) / (s ** 2)))
     return rotation
-
-
-def euclidean_distance(section, origin):
-    loc = np.array([section(0.5).x_xtra, section(0.5).y_xtra, section(0.5).z_xtra])
-    return np.sqrt(np.square(loc-origin).sum())
-

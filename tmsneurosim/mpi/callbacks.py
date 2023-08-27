@@ -52,6 +52,11 @@ def min_max_normalize(v):
     return -1 + 2*((v - v.min()) / (v.max() - v.min()))
 
 
+def euclidean_distance(section, origin):
+    loc = np.array([section(0.5).x_xtra, section(0.5).y_xtra, section(0.5).z_xtra])
+    return np.sqrt(np.square(loc-origin).sum())
+
+
 class CallbackList:
     def __init__(self, callbacks):
         self.callbacks : List[Callback] = callbacks if callbacks is not None else []
@@ -118,26 +123,16 @@ class Callback(MPIRecorder):
         pass
 
 
-class ThresholdDataRecorder(Callback):
-    def __init__(self,
-                 directory,
-                 variables=['soma_efield',
-                            'threshold',
-                            'initiate_ind',
-                            'position',
-                            't_init'],
-                 terminals_only=True):
+class ThresholdCallback(Callback):
+    def __init__(self, directory, variables, terminals_only=True):
         super().__init__(directory, variables)
         self.terminals_only = terminals_only
 
-    def post_threshold(
-            self,
-            cell,
-            waveform_type,
-            position,
-            transformed_e_field,
-            threshold,
-            idx) -> None:
+    def _determine_initiate_ind(
+            self, cell, waveform_type, transformed_e_field, threshold
+        ):
+
+        v_thr = N.threshold
 
         simulation = EFieldSimulation(cell, waveform_type)
         simulation.apply_e_field(transformed_e_field)
@@ -156,14 +151,14 @@ class ThresholdDataRecorder(Callback):
         simulation.simulate(threshold, reinit=True)
         v_rec = np.vstack([np.array(v) for v in v_records])
 
-        sec_inds_t, t_inds_t = np.where(np.diff(np.signbit(v_rec-N.threshold), axis=1))
+        sec_inds_t, t_inds_t = np.where(np.diff(np.signbit(v_rec-v_thr), axis=1))
         sec_inds = []
         t_inds = []
 
         len_ap = int(N.ap_dur / N.dt)
         
         for s_ind, t_ind in zip(sec_inds_t, t_inds_t):
-            if np.all(v_rec[s_ind][t_ind+1:t_ind+len_ap] >= N.threshold) or t_ind >= len_ap:
+            if np.all(v_rec[s_ind][t_ind+1:t_ind+len_ap] >= v_thr) or t_ind >= len_ap:
                 sec_inds.append(s_ind)
                 t_inds.append(t_ind)
         sec_inds = np.array(sec_inds)
@@ -188,6 +183,36 @@ class ThresholdDataRecorder(Callback):
             dv = v_rec[initiate_ind][t_min+1] - v_rec[initiate_ind][t_min-1]
             t_pred = -v_rec[initiate_ind][t_min] / dv
             t_init = (t_min + t_pred) * N.dt
+        
+        return initiate_ind, t_init
+
+
+class ThresholdDataRecorder(ThresholdCallback):
+    def __init__(self,
+                 directory,
+                 variables=['soma_efield',
+                            'threshold',
+                            'initiate_ind',
+                            'position'],
+                 terminals_only=True,
+                 t_init=False):
+        super().__init__(directory, variables, terminals_only)
+        self.t_init = t_init
+        if t_init:
+            self.make_record('t_init')
+
+    def post_threshold(
+            self,
+            cell,
+            waveform_type,
+            position,
+            transformed_e_field,
+            threshold,
+            idx) -> None:
+
+        initiate_ind, t_init = self._determine_initiate_ind(
+            cell, waveform_type, transformed_e_field, threshold
+        )
 
         data = {
             'soma_efield': np.array([cell.soma[0].Ex_xtra,
@@ -195,14 +220,50 @@ class ThresholdDataRecorder(Callback):
                                      cell.soma[0].Ez_xtra]),
             'threshold': threshold,
             'initiate_ind': initiate_ind,
-            'position': position,
-            't_init': t_init
+            'position': position
         }
+
+        if self.t_init:
+            data['t_init'] = t_init
 
         i, j, k = idx
         for key, value in data.items():
             self.save(key, i, j, k, value)
 
+
+class ThresholdAmpScaleRecorder(ThresholdCallback):
+    def __init__(self,
+                 directory,
+                 amp_scale_range: List[float]):
+        super().__init__(directory, variables=None, terminals_only=True)
+        self.amp_scale_range = amp_scale_range
+        for scale in self.amp_scale_range:
+            self.make_record(f'v_axon_{scale:.1f}')
+
+    def post_threshold(
+            self,
+            cell,
+            waveform_type,
+            position,
+            transformed_e_field,
+            threshold,
+            idx) -> None:
+
+        initiate_ind, _ = self._determine_initiate_ind(
+            cell, waveform_type, transformed_e_field, threshold
+        )
+
+        i, j, k = idx
+
+        simulation = EFieldSimulation(cell, waveform_type)
+        simulation.apply_e_field(transformed_e_field)
+
+        v_rec_axon = h.Vector()
+        v_rec_axon.record(cell.ceterminals()[initiate_ind](0.5)._ref_v)
+
+        for scale in self.amp_scale_range:
+            simulation.simulate(scale*threshold, reinit=True)
+            self.save(f'v_axon_{scale:.1f}', i, j, k, np.array(v_rec_axon))
 
 
 def make_nn_input(cell, neg=False):

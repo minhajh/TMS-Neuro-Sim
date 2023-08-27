@@ -1,6 +1,7 @@
 import os
 import sys
 import pickle
+from typing import List
 
 from mpi4py import MPI
 import numpy as np
@@ -115,7 +116,7 @@ class Recorder:
 
 class MPIRecorder:
     
-    def __init__(self, directory, variables):
+    def __init__(self, directory, variables: List[str] = None):
         self.directory = directory
         
         if rank == 0:
@@ -124,17 +125,22 @@ class MPIRecorder:
         comm.Barrier()
         
         self.amode = MPI.MODE_WRONLY|MPI.MODE_CREATE
-        self.var_names = variables
+        self.var_names = []
         self.variables = {}
 
-        if IS_COMPUTE_RANK:
+        if variables is not None:
             for var in variables:
-                fh = MPI.File.Open(record_comm, f'{directory}/{var}', self.amode)
-                self.variables[var] = fh
+                self.make_record(var)
                 
         self.n_cells : int = None
         self.n_rotations : int = None
         self.n_locations : int = None
+
+    def make_record(self, var):
+        self.var_names.append(var)
+        if IS_COMPUTE_RANK:
+            fh = MPI.File.Open(record_comm, f'{self.directory}/{var}', self.amode)
+            self.variables[var] = fh
         
     def init(self, n_cells, n_rotations, n_locations):
 

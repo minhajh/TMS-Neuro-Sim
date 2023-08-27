@@ -16,7 +16,7 @@ from tmsneurosim.nrn.simulation.simulation import WaveformType
 from tmsneurosim.nrn.simulation import Backend as N
 
 from tmsneurosim.mpi.data import (
-    COMPUTE_TAG, FILE_TAG, MASTER_RANK, FILE_RANK
+    COMPUTE_TAG, MASTER_RANK, FILE_RANK
 )
 from tmsneurosim.mpi.callbacks import CallbackList, Callback
 
@@ -57,7 +57,8 @@ def simulate_combined_threshold_layer(
         initial_rotation: int = None,
         callbacks: List[Callback] = None) -> simnibs.Msh:
     """
-    Simulates the threshold of each neuron at each simulation element with all azimuthal rotations.
+    Simulates the threshold of each neuron at each simulation element
+    with all azimuthal rotations.
     :param layer: The cortical layer to place the neurons on.
     :param cells: The neurons to be used for the simulations.
     :param waveform_type: The waveform type to be used for the simulation.
@@ -118,6 +119,8 @@ def simulate_combined_threshold_layer(
 
     COMM.barrier()
 
+    callbacks.close()
+
     if RANK == 0:
         layer.add_selected_elements_field(azimuthal_rotation, 'Initial_Rotation')
         layer.add_selected_elements_field(layer.get_smoothed_normals(), 'Normal')
@@ -171,9 +174,6 @@ def _master(n_parameter_sets, threshes, tags):
             COMM.Send([finish, MPI.INT], dest=s.source, tag=COMPUTE_TAG)
         pbar.update()
         complete += 1
-
-    done = 0
-    COMM.send(done, dest=FILE_RANK, tag=FILE_TAG)
 
 
 def _worker(params,
@@ -292,7 +292,8 @@ def calculate_cell_threshold(
 def rotation_from_vectors(
         vec1: NDArray[np.float64],
         vec2: NDArray[np.float64]) -> Rotation:
-    """ Creates a rotation instance that rotates vector 1 into the direction of vector 2
+    """
+    Creates a rotation instance that rotates vector 1 into the direction of vector 2
 
     :param vec1: The original direction
     :param vec2: The final direction

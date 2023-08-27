@@ -38,15 +38,7 @@ def all_simulation_params(
         rotation_count,
         rotation_step,
         azimuthal_rotation
-    ) -> Iterator[(
-        Tuple[int, int, int],
-        NeuronCell,
-        WaveformType,
-        NDArray(3),
-        NDArray(3),
-        float,
-        CorticalLayer
-    )]:
+    ):
 
     for i, cell in enumerate(cells):
         for j in range(rotation_count):

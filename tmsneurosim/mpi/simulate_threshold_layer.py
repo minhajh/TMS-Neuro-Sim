@@ -275,6 +275,7 @@ def calculate_cell_threshold(
     callbacks.call_hook(
         'post_threshold',
         cell,
+        simulation.init_state,
         waveform_type,
         position,
         transformed_e_field,

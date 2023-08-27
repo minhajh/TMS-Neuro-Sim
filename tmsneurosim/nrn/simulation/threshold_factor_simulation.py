@@ -14,7 +14,13 @@ class ThresholdFactorSimulation(Simulation):
     def __init__(self, neuron_cell: NeuronCell, waveform_type: WaveformType):
         super().__init__(neuron_cell, waveform_type)
 
-    def simulate(self, stimulation_amplitude: float, reinit=False, init_record=True, init_state=None):
+    def simulate(
+            self,
+            stimulation_amplitude: float,
+            reinit=False,
+            init_record=True,
+            init_state=None,
+            initialize=True):
         """
         Executes a NEURON simulation with the submitted amplitude as the scaling factor for the E-field.
         :param stimulation_amplitude:
@@ -25,16 +31,17 @@ class ThresholdFactorSimulation(Simulation):
         
         if reinit:
             self.init_state = None
-            
-        if self.init_state is None:
-            h.celsius = self.simulation_temperature
-            h.dt = self.simulation_time_step
-            h.tstop = self.simulation_duration
-            h.finitialize(self.INITIAL_VOLTAGE)
-            self.init_state = h.SaveState()
-            self.init_state.save()
-        else:
-            self.init_state.restore()
+        
+        if initialize:
+            if self.init_state is None:
+                h.celsius = self.simulation_temperature
+                h.dt = self.simulation_time_step
+                h.tstop = self.simulation_duration
+                h.finitialize(self.INITIAL_VOLTAGE)
+                self.init_state = h.SaveState()
+                self.init_state.save()
+            else:
+                self.init_state.restore()
                         
         if init_record:
             h.frecord_init()
@@ -55,6 +62,7 @@ class ThresholdFactorSimulation(Simulation):
             raise ValueError('Simulation is not attached')
         if not self.neuron_cell.loaded:
             raise ValueError('Neuron cell is not loaded')
+        
         low = 0.0
         high = 1e5
         amplitude = 100.0

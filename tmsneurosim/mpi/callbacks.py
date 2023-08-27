@@ -69,6 +69,7 @@ class CallbackList:
             self,
             hook,
             cell,
+            state,
             waveform_type,
             position,
             transformed_e_field,
@@ -78,6 +79,7 @@ class CallbackList:
             c.call_hook(
                 hook,
                 cell,
+                state,
                 waveform_type,
                 position,
                 transformed_e_field,
@@ -103,6 +105,7 @@ class Callback(MPIRecorder):
             self,
             hook,
             cell,
+            state,
             waveform_type,
             position,
             transformed_e_field,
@@ -112,12 +115,19 @@ class Callback(MPIRecorder):
             raise AttributeError(f'{hook} is invalid.')
         getattr(self, hook)(
             cell,
+            state,
             waveform_type,
             position,
             transformed_e_field,
             threshold,
             idx)
         gc.collect()
+
+    @staticmethod
+    def restore(simulation, state):
+        simulation.attach()
+        state.restore()
+        simulation.detach()
 
     def post_threshold(self):
         pass
@@ -129,13 +139,13 @@ class ThresholdCallback(Callback):
         self.terminals_only = terminals_only
 
     def _determine_initiate_ind(
-            self, cell, waveform_type, transformed_e_field, threshold
+            self, cell, state, waveform_type, transformed_e_field, threshold
         ):
 
         v_thr = N.threshold
 
         simulation = EFieldSimulation(cell, waveform_type)
-        simulation.attach(spike_recording=False)
+        self.restore(simulation, state)
         simulation.apply_e_field(transformed_e_field)
 
         if self.terminals_only:
@@ -149,7 +159,7 @@ class ThresholdCallback(Callback):
             v_record.record(sec(0.5)._ref_v)
             v_records.append(v_record)
 
-        simulation.simulate(threshold)
+        simulation.simulate(threshold, initialize=False)
         v_rec = np.vstack([np.array(v) for v in v_records])
 
         sec_inds_t, t_inds_t = np.where(np.diff(np.signbit(v_rec-v_thr), axis=1))
@@ -207,6 +217,7 @@ class ThresholdDataRecorder(ThresholdCallback):
     def post_threshold(
             self,
             cell,
+            state,
             waveform_type,
             position,
             transformed_e_field,
@@ -214,7 +225,7 @@ class ThresholdDataRecorder(ThresholdCallback):
             idx) -> None:
 
         initiate_ind, t_init = self._determine_initiate_ind(
-            cell, waveform_type, transformed_e_field, threshold
+            cell, state, waveform_type, transformed_e_field, threshold
         )
 
         data = {
@@ -246,6 +257,7 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
     def post_threshold(
             self,
             cell,
+            state,
             waveform_type,
             position,
             transformed_e_field,
@@ -253,20 +265,20 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
             idx) -> None:
 
         initiate_ind, _ = self._determine_initiate_ind(
-            cell, waveform_type, transformed_e_field, threshold
+            cell, state, waveform_type, transformed_e_field, threshold
         )
 
         i, j, k = idx
 
         simulation = EFieldSimulation(cell, waveform_type)
-        simulation.attach(spike_recording=False)
         simulation.apply_e_field(transformed_e_field)
 
         v_rec_axon = h.Vector()
         v_rec_axon.record(cell.terminals()[initiate_ind](0.5)._ref_v)
 
         for scale in self.amp_scale_range:
-            simulation.simulate(scale*threshold)
+            self.restore(simulation, state)
+            simulation.simulate(scale*threshold, initialize=False)
             self.save(f'v_axon_{scale:.2f}', i, j, k, np.array(v_rec_axon))
 
 

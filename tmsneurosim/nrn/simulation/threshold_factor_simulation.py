@@ -18,46 +18,42 @@ class ThresholdFactorSimulation(Simulation):
             self,
             stimulation_amplitude: float,
             reinit=False,
-            init_record=False,
-            init_state=None,
-            initialize=False):
+            steady_state=True,
+            init_state=None):
         """
         Executes a NEURON simulation with the submitted amplitude as the scaling factor for the E-field.
         :param stimulation_amplitude:
         :return:
         """
+        h.celsius = self.simulation_temperature
+        h.dt = self.simulation_time_step
+        h.tstop = self.simulation_duration
+
         if init_state is not None:
             self.init_state = init_state
         
         if reinit:
             self.init_state = None
-        
-        if initialize:
-            if self.init_state is None:
-                h.celsius = self.simulation_temperature
-                h.dt = self.simulation_time_step
-                h.tstop = self.simulation_duration
-                h.finitialize(self.INITIAL_VOLTAGE)
-                self.init_state = h.SaveState()
-                self.init_state.save()
-            else:
-                self.init_state.restore()
-                        
-        if init_record:
-            h.frecord_init()
-            
-        h.v_init = self.INITIAL_VOLTAGE
-        
-        h.celsius = self.simulation_temperature
-        h.dt = self.simulation_time_step
-        h.tstop = self.simulation_duration
+                                            
+        if self.init_state is None:
+            h.finitialize(self.INITIAL_VOLTAGE)
+            if steady_state:
+                self._post_finitialize()
+            self.init_state = h.SaveState()
+            self.init_state.save()
                         
         waveform_vector = h.Vector(self.waveform * stimulation_amplitude)
         waveform_time_vector = h.Vector(self.waveform_time)
 
         waveform_vector.play(h._ref_stim_xtra, waveform_time_vector, 1)
 
-        h.run()
+        h.finitialize()
+
+        if self.init_state is not None:
+            self.init_state.restore()
+
+        while h.t < h.tstop:
+            h.fadvance()
 
     def find_threshold_factor(self):
         """

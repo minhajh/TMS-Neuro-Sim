@@ -265,11 +265,22 @@ class ThresholdDataRecorder(ThresholdCallback):
 class ThresholdAmpScaleRecorder(ThresholdCallback):
     def __init__(self,
                  directory,
-                 amp_scale_range: List[float]):
+                 amp_scale_range: List[float],
+                 record_soma=False,
+                 record_apic=False):
+        
         super().__init__(directory, variables=None, terminals_only=True)
+        
         self.amp_scale_range = amp_scale_range
+        self.record_soma = record_soma
+        self.record_apic = record_apic
+
         for scale in self.amp_scale_range:
             self.make_record(f'v_axon_{scale:.2f}')
+            if self.record_soma:
+                self.make_record(f'v_soma_{scale:.2f}')
+            if self.record_apic:
+                self.make_record(f'v_apic_{scale:.2f}')
 
     def post_threshold(
             self,
@@ -290,12 +301,33 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
         simulation = EFieldSimulation(cell, waveform_type).attach()
         simulation.apply_e_field(transformed_e_field)
 
+        terminal_sec = cell.terminals()[initiate_ind]
+
         v_rec_axon = h.Vector()
-        v_rec_axon.record(cell.terminals()[initiate_ind](0.5)._ref_v)
+        v_rec_axon.record(terminal_sec(0.5)._ref_v)
+
+        if self.record_soma:
+            v_rec_soma = h.Vector()
+            v_rec_soma.record(cell.soma[0](0.5)._ref_v)
+
+        if self.record_apic:
+            v_rec_apic = h.Vector()
+            pick_from = cell.terminals(cell.apic)
+            origin = np.array([terminal_sec(0.5).x_xtra,
+                               terminal_sec(0.5).y_xtra,
+                               terminal_sec(0.5).z_xtra])
+            ds = [euclidean_distance(sec, origin) for sec in pick_from]
+            apic_sec = pick_from[np.argmax(ds)]
+            v_rec_apic.record(apic_sec(0.5)._ref_v)
+
 
         for scale in self.amp_scale_range:
             simulation.simulate(scale*threshold, init_state=state)
             self.save(f'v_axon_{scale:.2f}', i, j, k, np.array(v_rec_axon))
+            if self.record_soma:
+                self.save('v_soma_{scale:.2f}', i, j, k, np.array(v_rec_soma))
+            if self.record_apic:
+                self.save('v_apic_{scale:.2f}', i, j, k, np.array(v_rec_apic))
 
 
 def make_nn_input(cell, neg=False):

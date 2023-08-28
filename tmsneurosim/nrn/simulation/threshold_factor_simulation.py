@@ -34,26 +34,25 @@ class ThresholdFactorSimulation(Simulation):
         
         if reinit:
             self.init_state = None
-                                            
-        if self.init_state is None:
-            h.finitialize(self.INITIAL_VOLTAGE)
-            if steady_state:
-                self._post_finitialize()
-            self.init_state = h.SaveState()
-            self.init_state.save()
-                        
+            
         waveform_vector = h.Vector(self.waveform * stimulation_amplitude)
         waveform_time_vector = h.Vector(self.waveform_time)
 
         waveform_vector.play(h._ref_stim_xtra, waveform_time_vector, 1)
-
-        h.finitialize()
+                         
+        h.finitialize(self.INITIAL_VOLTAGE)
+                         
+        if self.init_state is None:
+            if steady_state:
+                self._post_finitialize()
+            self.init_state = h.SaveState()
+            self.init_state.save()
 
         if self.init_state is not None:
-            self.init_state.restore()
-
-        while h.t < h.tstop:
-            h.fadvance()
+            self.init_state.restore(1)
+            
+        h.frecord_init()
+        h.continuerun(h.tstop)
 
     def find_threshold_factor(self):
         """

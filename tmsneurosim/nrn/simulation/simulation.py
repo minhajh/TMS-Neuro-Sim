@@ -52,6 +52,7 @@ class Simulation:
 
         self.netcons = []
 
+
     def attach(self, spike_recording=True, steady_state=False):
         """
         Attaches spike recording to the neuron and connects the simulation initialization
@@ -64,6 +65,9 @@ class Simulation:
             self.init_handler = h.FInitializeHandler(2, self._post_finitialize)
 
         self.attached = True
+        
+        return self
+
 
     def detach(self):
         """ Removes the spike recording from the neuron and disconnects the initialization methode.
@@ -76,6 +80,9 @@ class Simulation:
             self.init_handler = None
 
             self.attached = False
+           
+        return self
+
 
     def _post_finitialize(self):
         """ Initialization methode to unsure a steady state before the actual simulation is started.
@@ -90,6 +97,10 @@ class Simulation:
 
         h.dt = temp_dt
         h.t = 0
+        
+        h.fcurrent()
+        h.frecord_init()
+
 
     def _init_spike_recording(self):
         """Initializes spike recording for every segment of the neuron.
@@ -108,6 +119,7 @@ class Simulation:
                 recording_netcon.delay = 0
                 recording_netcon.record(self._action_potentials, self._action_potentials_recording_ids, i)
                 self.netcons.append(recording_netcon)
+
 
     def validate_is_active(self):
         v_rec = np.vstack([np.array(v) for v in self.v_recs])

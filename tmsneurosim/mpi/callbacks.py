@@ -138,8 +138,7 @@ class ThresholdCallback(Callback):
 
         v_thr = N.threshold
 
-        simulation = EFieldSimulation(cell, waveform_type)
-        simulation.attach()
+        simulation = EFieldSimulation(cell, waveform_type).attach()
         simulation.apply_e_field(transformed_e_field)
 
         if self.terminals_only:
@@ -264,8 +263,7 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
 
         i, j, k = idx
 
-        simulation = EFieldSimulation(cell, waveform_type)
-        simulation.attach()
+        simulation = EFieldSimulation(cell, waveform_type).attach()
         simulation.apply_e_field(transformed_e_field)
 
         v_rec_axon = h.Vector()

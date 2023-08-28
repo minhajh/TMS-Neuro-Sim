@@ -325,9 +325,9 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
             simulation.simulate(scale*threshold, init_state=state)
             self.save(f'v_axon_{scale:.2f}', i, j, k, np.array(v_rec_axon))
             if self.record_soma:
-                self.save('v_soma_{scale:.2f}', i, j, k, np.array(v_rec_soma))
+                self.save(f'v_soma_{scale:.2f}', i, j, k, np.array(v_rec_soma))
             if self.record_apic:
-                self.save('v_apic_{scale:.2f}', i, j, k, np.array(v_rec_apic))
+                self.save(f'v_apic_{scale:.2f}', i, j, k, np.array(v_rec_apic))
 
 
 def make_nn_input(cell, neg=False):

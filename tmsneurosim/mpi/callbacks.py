@@ -1,4 +1,4 @@
-from functools import wraps
+from functools import partial, wraps
 import gc
 from typing import List
 
@@ -155,7 +155,7 @@ class ThresholdCallback(Callback):
         super().__init__(directory, variables)
         self.terminals_only = terminals_only
 
-    @cached(['initiate_ind', 't_init'])
+    @partial(cached(names=['initiate_ind', 't_init']))
     def _determine_initiate_ind(
             self, cell, state, waveform_type, transformed_e_field, threshold
         ):

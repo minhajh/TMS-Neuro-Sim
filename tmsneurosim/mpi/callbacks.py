@@ -1,3 +1,4 @@
+from functools import wraps
 import gc
 from typing import List
 
@@ -8,6 +9,27 @@ from sklearn.preprocessing import normalize
 from tmsneurosim.mpi.data import MPIRecorder
 from tmsneurosim.nrn.simulation import Backend as N
 from tmsneurosim.nrn.simulation.e_field_simulation import EFieldSimulation
+
+
+__cache__ = {}
+
+
+def cached(fun, names):
+
+    @wraps(fun)
+    def ret_fun(*args, **kwargs):
+        
+        try:
+            ret = tuple(__cache__[n] for n in names)
+        except KeyError:
+            ret = fun(*args, **kwargs)
+        
+        for n, v in zip(names, ret):
+            __cache__[n] = v
+
+        return ret
+
+    return ret_fun
 
 
 def get_branch_from_terminal(cell, terminal_sec, terminate_before_soma=False):
@@ -85,6 +107,7 @@ class CallbackList:
                 transformed_e_field,
                 threshold,
                 idx)
+        __cache__.clear()
 
     def close(self):
         for c in self:
@@ -132,6 +155,7 @@ class ThresholdCallback(Callback):
         super().__init__(directory, variables)
         self.terminals_only = terminals_only
 
+    @cached(['initiate_ind', 't_init'])
     def _determine_initiate_ind(
             self, cell, state, waveform_type, transformed_e_field, threshold
         ):

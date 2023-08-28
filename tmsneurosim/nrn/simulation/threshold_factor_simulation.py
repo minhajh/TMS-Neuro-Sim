@@ -18,9 +18,9 @@ class ThresholdFactorSimulation(Simulation):
             self,
             stimulation_amplitude: float,
             reinit=False,
-            init_record=True,
+            init_record=False,
             init_state=None,
-            initialize=True):
+            initialize=False):
         """
         Executes a NEURON simulation with the submitted amplitude as the scaling factor for the E-field.
         :param stimulation_amplitude:
@@ -45,6 +45,12 @@ class ThresholdFactorSimulation(Simulation):
                         
         if init_record:
             h.frecord_init()
+            
+        h.v_init = self.INITIAL_VOLTAGE
+        
+        h.celsius = self.simulation_temperature
+        h.dt = self.simulation_time_step
+        h.tstop = self.simulation_duration
                         
         waveform_vector = h.Vector(self.waveform * stimulation_amplitude)
         waveform_time_vector = h.Vector(self.waveform_time)

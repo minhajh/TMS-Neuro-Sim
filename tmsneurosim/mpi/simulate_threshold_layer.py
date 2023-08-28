@@ -271,7 +271,7 @@ def calculate_cell_threshold(
     threshold = simulation.find_threshold_factor()
     simulation.detach()
     gc.collect()
-    
+        
     callbacks.call_hook(
         'post_threshold',
         cell,

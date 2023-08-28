@@ -79,6 +79,7 @@ class Simulation:
     def _post_finitialize(self):
         """ Initialization methode to unsure a steady state before the actual simulation is started.
         """
+        print('in _post_finitialize')
         temp_dt = h.dt
 
         h.t = -1e11

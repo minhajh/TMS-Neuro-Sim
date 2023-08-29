@@ -5,8 +5,9 @@ from typing import List
 import numpy as np
 from neuron import h
 from sklearn.preprocessing import normalize
+from scipy.interpolate import interp1d
 
-from tmsneurosim.mpi.data import MPIRecorder
+from tmsneurosim.mpi.data import MPIRecorder, rank
 from tmsneurosim.nrn.simulation import Backend as N
 from tmsneurosim.nrn.simulation.e_field_simulation import EFieldSimulation
 
@@ -74,12 +75,19 @@ def min_max_normalize(v):
     return -1 + 2*((v - v.min()) / (v.max() - v.min()))
 
 
+def normalized_branch_length(branch):
+    init = branch[0]
+    d = np.array([h.distance(init(0.5), sec(0.5)) for sec in branch])
+    return d / d[-1]
+
+
 def euclidean_distance(section, origin):
     loc = np.array([section(0.5).x_xtra, section(0.5).y_xtra, section(0.5).z_xtra])
     return np.sqrt(np.square(loc-origin).sum())
 
 
 class CallbackList:
+
     def __init__(self, callbacks):
         self.callbacks : List[Callback] = callbacks if callbacks is not None else []
 
@@ -147,10 +155,11 @@ class Callback(MPIRecorder):
         gc.collect()
 
     def post_threshold(self):
-        pass
+        raise NotImplementedError
 
 
 class ThresholdCallback(Callback):
+
     def __init__(self, directory, variables, terminals_only=True):
         super().__init__(directory, variables)
         self.terminals_only = terminals_only
@@ -216,6 +225,7 @@ class ThresholdCallback(Callback):
 
 
 class ThresholdDataRecorder(ThresholdCallback):
+
     def __init__(self,
                  directory,
                  terminals_only=True,
@@ -239,7 +249,8 @@ class ThresholdDataRecorder(ThresholdCallback):
             position,
             transformed_e_field,
             threshold,
-            idx) -> None:
+            idx
+        ) -> None:
 
         initiate_ind, t_init = self._determine_initiate_ind(
             cell, state, waveform_type, transformed_e_field, threshold
@@ -263,6 +274,7 @@ class ThresholdDataRecorder(ThresholdCallback):
 
 
 class ThresholdAmpScaleRecorder(ThresholdCallback):
+
     def __init__(self,
                  directory,
                  amp_scale_range: List[float],
@@ -290,7 +302,8 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
             position,
             transformed_e_field,
             threshold,
-            idx) -> None:
+            idx
+        ) -> None:
 
         initiate_ind, _ = self._determine_initiate_ind(
             cell, state, waveform_type, transformed_e_field, threshold
@@ -328,6 +341,76 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
                 self.save(f'v_soma_{scale:.2f}', i, j, k, np.array(v_rec_soma))
             if self.record_apic:
                 self.save(f'v_apic_{scale:.2f}', i, j, k, np.array(v_rec_apic))
+
+
+class ThresholdGeometryRecorder(ThresholdCallback):
+
+    def __init__(self, directory, nx=51):
+        super().__init__(directory, variables=None, terminals_only=True)
+        self.nx = nx
+        if rank == 0:
+            np.save(f'{directory}/x_coord', np.linspace(0, 1, nx))
+        self.make_record('dist_term_soma')
+        self.make_record('dist_apic_soma')
+        self.make_record('axon_branch_es')
+        self.make_record('apic_branch_es')
+        self.make_record('axon_first_internode_dist_norm')
+        self.make_record('apic_first_internode_dist_norm')
+
+    def post_threshold(
+            self,
+            cell,
+            state,
+            waveform_type,
+            position,
+            transformed_e_field,
+            threshold,
+            idx
+        ) -> None:
+
+        initiate_ind, _ = self._determine_initiate_ind(
+            cell, state, waveform_type, transformed_e_field, threshold
+        )
+
+        i, j, k = idx
+
+        terminal_sec = cell.terminals()[initiate_ind]
+        pick_from = cell.terminals(cell.apic)
+        origin = np.array([terminal_sec(0.5).x_xtra,
+                           terminal_sec(0.5).y_xtra,
+                           terminal_sec(0.5).z_xtra])
+        ds = [euclidean_distance(sec, origin) for sec in pick_from]
+        apic_sec = pick_from[np.argmax(ds)]
+
+        d_t_s = h.distance(terminal_sec(0.5), cell.soma[0](0.5))
+        d_a_s = h.distance(apic_sec(0.5), cell.soma[0](0.5))
+
+        self.save('dist_term_soma', i, j, k, d_t_s)
+        self.save('dist_apic_soma', i, j, k, d_a_s)
+
+        axon_branch = get_branch_from_terminal(cell, terminal_sec)
+        norm_branch_x = normalized_branch_length(axon_branch)
+        branch_es = np.array([sec.es_xtra for sec in axon_branch])
+        f = interp1d(norm_branch_x, branch_es)
+        es_save = f(np.linspace(0, 1, self.nx))
+        self.save('axon_branch_es', i, j, k, es_save)
+
+        apic_branch = get_branch_from_terminal(cell, apic_sec)
+        norm_branch_x = normalized_branch_length(apic_branch)[::-1]
+        branch_es = np.array([sec.es_xtra for sec in apic_branch])[::-1]
+        f = interp1d(norm_branch_x, branch_es)
+        es_save = f(np.linspace(0, 1, self.nx))
+        self.save('apic_branch_es', i, j, k, es_save)
+
+        for s in axon_branch[1:]:
+            if s in cell.node or s in cell.axon:
+                nn = s
+                break
+        d_f_i_n = h.distance(terminal_sec(0.5), nn(0.5)) / d_t_s
+        self.save('axon_first_internode_dist_norm', i, j, k, d_f_i_n)
+
+        a_f_i_n = h.distance(apic_sec(0.5), apic_branch[-2](0.5)) / d_a_s
+        self.save('apic_first_internode_dist_norm', i, j, k, a_f_i_n)
 
 
 def make_nn_input(cell, neg=False):

@@ -61,6 +61,12 @@ def get_branch_to_branch(cell, terminal_sec, adjacency):
     return branch
 
 
+def path_via_soma(sec1, sec2, cell):
+    branch1 = get_branch_from_terminal(cell, sec1, False)
+    branch2 = get_branch_from_terminal(cell, sec2, True)
+    return branch1 + branch2[::-1]
+
+
 def full_branch(cell, terminal_sec, adjacency):
     main_branch = get_branch_from_terminal(cell, terminal_sec)
     aux = []
@@ -75,10 +81,16 @@ def min_max_normalize(v):
     return -1 + 2*((v - v.min()) / (v.max() - v.min()))
 
 
-def normalized_branch_length(branch):
+def branch_length(branch, norm=True):
     init = branch[0]
     d = np.array([h.distance(init(0.5), sec(0.5)) for sec in branch])
-    return d / d[-1]
+    if norm:
+        return d / d.max()
+    return d
+
+
+def normalized_branch_length(branch):
+    return branch_length(branch, norm=True)
 
 
 def euclidean_distance(section, origin):

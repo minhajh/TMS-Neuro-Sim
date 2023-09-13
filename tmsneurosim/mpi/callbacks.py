@@ -458,6 +458,7 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
         self.make_record('pred_axon_first_internode_dist_norm')
         self.make_record('pred_apic_first_internode_dist_norm')
         self.make_record('pred_distance_from_true_init')
+        self.make_record('pred_initiate_ind')
 
     def _combined(self, cell, intiate_ind, idx):
         i, j, k = idx
@@ -487,9 +488,11 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
 
         if t_s_i_e_d < t_s_i_n_e_d:
             self.save('pred_distance_from_true_init', i, j, k, t_s_i_e_d)
+            self.save('pred_initiate_ind', i, j, k, terminal_sec_ind)
             return terminal_sec_ind
         else:
             self.save('pred_distance_from_true_init', i, j, k, t_s_i_n_e_d)
+            self.save('pred_initiate_ind', i, j, k, terminal_sec_ind_neg)
             return terminal_sec_ind_neg
 
     def post_threshold(

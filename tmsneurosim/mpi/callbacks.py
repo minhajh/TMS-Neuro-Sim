@@ -82,8 +82,12 @@ def normalized_branch_length(branch):
 
 
 def euclidean_distance(section, origin):
-    loc = np.array([section(0.5).x_xtra, section(0.5).y_xtra, section(0.5).z_xtra])
+    loc = coords(section)
     return np.sqrt(np.square(loc-origin).sum())
+
+
+def coords(sec):
+    return np.array([sec(0.5).x_xtra, sec(0.5).y_xtra, sec(0.5).z_xtra])
 
 
 class CallbackList:
@@ -335,9 +339,7 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
         if self.record_apic:
             v_rec_apic = h.Vector()
             pick_from = cell.terminals(cell.apic)
-            origin = np.array([terminal_sec(0.5).x_xtra,
-                               terminal_sec(0.5).y_xtra,
-                               terminal_sec(0.5).z_xtra])
+            origin = coords(terminal_sec)
             ds = [euclidean_distance(sec, origin) for sec in pick_from]
             apic_sec = pick_from[np.argmax(ds)]
             v_rec_apic.record(apic_sec(0.5)._ref_v)
@@ -386,9 +388,7 @@ class ThresholdGeometryRecorder(ThresholdCallback):
 
         terminal_sec = cell.terminals()[initiate_ind]
         pick_from = cell.terminals(cell.apic)
-        origin = np.array([terminal_sec(0.5).x_xtra,
-                           terminal_sec(0.5).y_xtra,
-                           terminal_sec(0.5).z_xtra])
+        origin = coords(terminal_sec)
         ds = [euclidean_distance(sec, origin) for sec in pick_from]
         apic_sec = pick_from[np.argmax(ds)]
 
@@ -468,8 +468,10 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
 
         init_term = terminals[intiate_ind]
 
-        t_s_i_e_d = euclidean_distance(terminals[terminal_sec_ind], init_term)
-        t_s_i_n_e_d = euclidean_distance(terminals[terminal_sec_ind_neg], init_term)
+        origin = coords(init_term)
+
+        t_s_i_e_d = euclidean_distance(terminals[terminal_sec_ind], origin)
+        t_s_i_n_e_d = euclidean_distance(terminals[terminal_sec_ind_neg], origin)
 
         if t_s_i_e_d < t_s_i_n_e_d:
             self.save('pred_distance_from_true_init', i, j, k, t_s_i_e_d)
@@ -499,9 +501,7 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
 
         terminal_sec = cell.terminals()[pred_initiate_ind]
         pick_from = cell.terminals(cell.apic)
-        origin = np.array([terminal_sec(0.5).x_xtra,
-                           terminal_sec(0.5).y_xtra,
-                           terminal_sec(0.5).z_xtra])
+        origin = coords(terminal_sec)
         ds = [euclidean_distance(sec, origin) for sec in pick_from]
         apic_sec = pick_from[np.argmax(ds)]
 

@@ -288,7 +288,8 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
         self.record_apic = record_apic
 
         for scale in self.amp_scale_range:
-            self.make_record(f'v_axon_{scale:.2f}')
+            self.make_record(f'v_axon_0_{scale:.2f}')
+            self.make_record(f'v_axon_1_{scale:.2f}')
             if self.record_soma:
                 self.make_record(f'v_soma_{scale:.2f}')
             if self.record_apic:
@@ -315,9 +316,17 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
         simulation.apply_e_field(transformed_e_field)
 
         terminal_sec = cell.terminals()[initiate_ind]
+        axon_branch = get_branch_from_terminal(cell, terminal_sec)
+        for s in axon_branch[1:]:
+            if s in cell.node or s in cell.axon:
+                nn = s
+                break
 
-        v_rec_axon = h.Vector()
-        v_rec_axon.record(terminal_sec(0.5)._ref_v)
+        v_rec_axon_0 = h.Vector()
+        v_rec_axon_0.record(terminal_sec(0.5)._ref_v)
+
+        v_rec_axon_1 = h.Vector()
+        v_rec_axon_1.record(nn(0.5)._ref_v)
 
         if self.record_soma:
             v_rec_soma = h.Vector()
@@ -336,7 +345,8 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
 
         for scale in self.amp_scale_range:
             simulation.simulate(scale*threshold, init_state=state)
-            self.save(f'v_axon_{scale:.2f}', i, j, k, np.array(v_rec_axon))
+            self.save(f'v_axon_0_{scale:.2f}', i, j, k, np.array(v_rec_axon_0))
+            self.save(f'v_axon_1_{scale:.2f}', i, j, k, np.array(v_rec_axon_1))
             if self.record_soma:
                 self.save(f'v_soma_{scale:.2f}', i, j, k, np.array(v_rec_soma))
             if self.record_apic:
@@ -411,6 +421,120 @@ class ThresholdGeometryRecorder(ThresholdCallback):
 
         a_f_i_n = h.distance(apic_sec(0.5), apic_branch[-2](0.5)) / d_a_s
         self.save('apic_first_internode_dist_norm', i, j, k, a_f_i_n)
+
+
+class PredictedInitGeometryRecorder(ThresholdCallback):
+
+    _predictors = {
+        'combined': '_combined'
+    }
+
+    def __init__(self, directory, nx=51, selection_method='combined'):
+
+        super().__init__(directory, variables=None, terminals_only=True)
+
+        self.nx = nx
+        if rank == 0:
+            np.save(f'{directory}/pred_x_coord', np.linspace(0, 1, nx))
+
+        self.selection_func = getattr(self, self._predictors[selection_method])
+
+        self.make_record('pred_dist_term_soma')
+        self.make_record('pred_dist_apic_soma')
+        self.make_record('pred_axon_branch_es')
+        self.make_record('pred_apic_branch_es')
+        self.make_record('pred_axon_first_internode_dist_norm')
+        self.make_record('pred_apic_first_internode_dist_norm')
+        self.make_record('pred_distance_from_true_init')
+
+    def _combined(self, cell, intiate_ind, idx):
+        i, j, k = idx
+
+        terminals = cell.terminals()
+
+        af = cell.terminal_activating_funcs()
+        af_n = min_max_normalize(af)
+
+        ip = cell.terminal_efield_inner_prod()
+        ip_n = min_max_normalize(ip)
+
+        es = np.array([t.es_xtra for t in terminals])
+        es_n = min_max_normalize(es)
+
+        decision_variable = af_n + ip_n - es_n
+
+        terminal_sec_ind = np.argmax(decision_variable)
+        terminal_sec_ind_neg = np.argmax(-decision_variable)
+
+        init_term = terminals[intiate_ind]
+
+        t_s_i_e_d = euclidean_distance(terminals[terminal_sec_ind], init_term)
+        t_s_i_n_e_d = euclidean_distance(terminals[terminal_sec_ind_neg], init_term)
+
+        if t_s_i_e_d < t_s_i_n_e_d:
+            self.save('pred_distance_from_true_init', i, j, k, t_s_i_e_d)
+            return terminal_sec_ind
+        else:
+            self.save('pred_distance_from_true_init', i, j, k, t_s_i_n_e_d)
+            return terminal_sec_ind_neg
+
+    def post_threshold(
+            self,
+            cell,
+            state,
+            waveform_type,
+            position,
+            transformed_e_field,
+            threshold,
+            idx
+        ) -> None:
+
+        initiate_ind, _ = self._determine_initiate_ind(
+            cell, state, waveform_type, transformed_e_field, threshold
+        )
+
+        i, j, k = idx
+
+        pred_initiate_ind = self.selection_func(cell, initiate_ind, idx)
+
+        terminal_sec = cell.terminals()[pred_initiate_ind]
+        pick_from = cell.terminals(cell.apic)
+        origin = np.array([terminal_sec(0.5).x_xtra,
+                           terminal_sec(0.5).y_xtra,
+                           terminal_sec(0.5).z_xtra])
+        ds = [euclidean_distance(sec, origin) for sec in pick_from]
+        apic_sec = pick_from[np.argmax(ds)]
+
+        d_t_s = h.distance(terminal_sec(0.5), cell.soma[0](0.5))
+        d_a_s = h.distance(apic_sec(0.5), cell.soma[0](0.5))
+
+        self.save('pred_dist_term_soma', i, j, k, d_t_s)
+        self.save('pred_dist_apic_soma', i, j, k, d_a_s)
+
+        axon_branch = get_branch_from_terminal(cell, terminal_sec)
+        norm_branch_x = normalized_branch_length(axon_branch)
+        branch_es = np.array([sec.es_xtra for sec in axon_branch])
+        f = interp1d(norm_branch_x, branch_es)
+        es_save = f(np.linspace(0, 1, self.nx))
+        self.save('pred_axon_branch_es', i, j, k, es_save)
+
+        apic_branch = get_branch_from_terminal(cell, apic_sec)
+        norm_branch_x = normalized_branch_length(apic_branch)[::-1]
+        branch_es = np.array([sec.es_xtra for sec in apic_branch])[::-1]
+        f = interp1d(norm_branch_x, branch_es)
+        es_save = f(np.linspace(0, 1, self.nx))
+        self.save('pred_apic_branch_es', i, j, k, es_save)
+
+        for s in axon_branch[1:]:
+            if s in cell.node or s in cell.axon:
+                nn = s
+                break
+
+        d_f_i_n = h.distance(terminal_sec(0.5), nn(0.5)) / d_t_s
+        self.save('pred_axon_first_internode_dist_norm', i, j, k, d_f_i_n)
+
+        a_f_i_n = h.distance(apic_sec(0.5), apic_branch[-2](0.5)) / d_a_s
+        self.save('pred_apic_first_internode_dist_norm', i, j, k, a_f_i_n)
 
 
 def make_nn_input(cell, neg=False):

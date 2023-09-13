@@ -9,6 +9,8 @@ tmsneurosim/nrn/cells/cells_hoc/L23_PC_cADpyr/morphology/[0-9]*?/*
 *.err
 *.out
 
+.vscode/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

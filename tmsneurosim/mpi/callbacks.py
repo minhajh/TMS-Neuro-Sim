@@ -1,5 +1,6 @@
 from functools import partial, wraps
 import gc
+import itertools
 from typing import List
 
 import numpy as np
@@ -65,6 +66,35 @@ def path_via_soma(sec1, sec2, cell):
     branch1 = get_branch_from_terminal(cell, sec1, False)
     branch2 = get_branch_from_terminal(cell, sec2, True)
     return branch1 + branch2[::-1]
+
+
+def normed_distance_axon_apic(axon_sec, apic_sec, cell):
+    axon_branch = get_branch_from_terminal(cell, axon_sec)
+    apic_branch = get_branch_from_terminal(cell, apic_sec)
+
+    axd = np.array(
+        list(itertools.chain.from_iterable([
+            [h.distance(seg, cell.soma[0](0.5)) for seg in sec]
+            for sec in axon_branch[::-1]]))
+    )
+    axd = -((axd - axd.min()) / (axd.max() - axd.min()))[::-1]
+
+    apd = np.array(
+        list(itertools.chain.from_iterable([
+            [h.distance(seg, cell.soma[0](0.5)) for seg in sec]
+            for sec in apic_branch[::-1]]))
+    )
+    apd = ((apd - apd.min()) / (apd.max() - apd.min()))
+
+    return np.concatenate((axd[:-1], apd))
+
+
+def sec_to_seg(seclist):
+    return [seg for sec in seclist for seg in sec]
+
+
+def es(clist):
+    return np.array([c.es_xtra for c in clist])
 
 
 def full_branch(cell, terminal_sec, adjacency):

@@ -410,6 +410,7 @@ class ThresholdGeometryRecorder(ThresholdCallback):
         self.make_record('apic_branch_es')
         self.make_record('axon_first_internode_dist_norm')
         self.make_record('apic_first_internode_dist_norm')
+        self.make_record('n_axonnode')
 
     def post_threshold(
             self,
@@ -446,6 +447,9 @@ class ThresholdGeometryRecorder(ThresholdCallback):
         f = interp1d(norm_branch_x, branch_es)
         es_save = f(np.linspace(0, 1, self.nx))
         self.save('axon_branch_es', i, j, k, es_save)
+
+        n_node =  len([sec for sec in axon_branch if sec in cell.node])
+        self.save('n_axonnode', i, j, k, n_node)
 
         apic_branch = get_branch_from_terminal(cell, apic_sec)
         norm_branch_x = normalized_branch_length(apic_branch)[::-1]
@@ -506,7 +510,7 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
 
         self.make_record('pred_distance_from_true_init')
         self.make_record('pred_initiate_ind')
-        self.make_record('n_axonnode')
+        self.make_record('pred_n_axonnode')
 
     def _combined(self, cell, intiate_ind, idx):
         i, j, k = idx
@@ -576,7 +580,7 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
 
         axon_branch = get_branch_from_terminal(cell, terminal_sec)
         n_node =  len([sec for sec in axon_branch if sec in cell.node])
-        self.save('n_axonnode', i, j, k, n_node)
+        self.save('pred_n_axonnode', i, j, k, n_node)
 
         if self.es == 'combined':
             branch = path_via_soma(terminal_sec, apic_sec, cell)

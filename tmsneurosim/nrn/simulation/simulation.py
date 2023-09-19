@@ -4,6 +4,7 @@ from enum import Enum
 import numpy as np
 from neuron import h
 from scipy.io import loadmat
+from scipy.interpolate import interp1d
 
 import tmsneurosim
 from tmsneurosim.nrn.cells import NeuronCell
@@ -13,6 +14,14 @@ from tmsneurosim.nrn.simulation import Backend as N
 class WaveformType(Enum):
     MONOPHASIC = 1
     BIPHASIC = 2
+    HALFSINE = 3
+
+
+WAVE_TYPE_STR = {
+    WaveformType.MONOPHASIC:'m',
+    WaveformType.BIPHASIC:'b',
+    WaveformType.HALFSINE:'h'
+}
 
 
 class Simulation:
@@ -130,7 +139,7 @@ class Simulation:
         return False
 
 
-    def _load_waveform(self, waveform_type: WaveformType):
+    def _load_waveform_old(self, waveform_type: WaveformType):
         """Loads the submitted waveform and modifies it to fit the simulation settings.
         """
         tms_waves = loadmat(
@@ -169,3 +178,26 @@ class Simulation:
             simulation_e_field_magnitude = simulation_e_field_magnitude[:len(simulation_time)]
 
         return simulation_e_field_magnitude, simulation_time
+
+
+    def _load_waveform(self, waveform_type: WaveformType):
+
+        tstop = self.simulation_duration
+        delay = self.stimulation_delay
+        dt = self.simulation_time_step
+
+        kind = WAVE_TYPE_STR[waveform_type]
+
+        tms_waves = loadmat(
+            str(pathlib.Path(tmsneurosim.nrn.__file__).parent.joinpath('coil_recordings/TMSwaves.mat').absolute())
+        )
+
+        recorded_time = tms_waves[f't{kind}'].ravel() + delay
+        recorded_e_field_magnitude = tms_waves[f'Erec_{kind}'].flatten()
+
+        interp = interp1d(recorded_time, recorded_e_field_magnitude,
+                          bounds_error=False, fill_value=0.0)
+        
+        t = np.arange(0, tstop+dt, dt)
+
+        return interp(t), t

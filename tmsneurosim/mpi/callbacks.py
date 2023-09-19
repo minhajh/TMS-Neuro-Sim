@@ -399,17 +399,27 @@ class ThresholdAmpScaleRecorder(ThresholdCallback):
 
 class ThresholdGeometryRecorder(ThresholdCallback):
 
-    def __init__(self, directory, nx=51):
+    def __init__(
+            self,
+            directory,
+            nx=51,
+            nint=2
+        ):
+        
         super().__init__(directory, variables=None, terminals_only=True)
+
         self.nx = nx
+        self.nint = nint
+
         if rank == 0:
             np.save(f'{directory}/x_coord', np.linspace(0, 1, nx))
+
         self.make_record('dist_term_soma')
         self.make_record('dist_apic_soma')
         self.make_record('axon_branch_es')
         self.make_record('apic_branch_es')
-        self.make_record('axon_first_internode_dist_norm')
-        self.make_record('apic_first_internode_dist_norm')
+        self.make_record('axon_internode_dist_norm')
+        self.make_record('apic_internode_dist_norm')
         self.make_record('n_axonnode')
 
     def post_threshold(
@@ -458,15 +468,20 @@ class ThresholdGeometryRecorder(ThresholdCallback):
         es_save = f(np.linspace(0, 1, self.nx))
         self.save('apic_branch_es', i, j, k, es_save)
 
+        i = 0
+        ints = []
         for s in axon_branch[1:]:
+            if i == self.nint:
+                break
             if s in cell.node or s in cell.axon:
                 nn = s
-                break
-        d_f_i_n = h.distance(terminal_sec(0.5), nn(0.5)) / d_t_s
-        self.save('axon_first_internode_dist_norm', i, j, k, d_f_i_n)
+                ints.append(h.distance(terminal_sec(0.5), nn(0.5)) / d_t_s)
+                i += 1
+
+        self.save('axon_internode_dist_norm', i, j, k, ints)
 
         a_f_i_n = h.distance(apic_sec(0.5), apic_branch[-2](0.5)) / d_a_s
-        self.save('apic_first_internode_dist_norm', i, j, k, a_f_i_n)
+        self.save('apic_internode_dist_norm', i, j, k, a_f_i_n)
 
 
 class PredictedInitGeometryRecorder(ThresholdCallback):
@@ -480,7 +495,9 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
             directory,
             nx=51,
             selection_method='combined',
-            es='combined'):
+            es='combined',
+            nint=2
+        ):
 
         super().__init__(directory, variables=None, terminals_only=True)
 
@@ -489,6 +506,7 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
 
         self.nx = nx
         self.es = es
+        self.nint = nint
 
         if rank == 0:
             if es == 'combined':
@@ -500,7 +518,7 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
 
         self.make_record('pred_dist_term_soma')
         self.make_record('pred_dist_apic_soma')
-        self.make_record('pred_axon_first_internode_dist_norm')
+        self.make_record('pred_axon_internode_dist_norm')
 
         if es == 'combined':
             self.make_record('pred_es')
@@ -605,13 +623,17 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
             es_save = f(np.linspace(0, 1, self.nx))
             self.save('pred_apic_branch_es', i, j, k, es_save)
 
+        i = 0
+        ints = []
         for s in axon_branch[1:]:
+            if i == self.nint:
+                break
             if s in cell.node or s in cell.axon:
                 nn = s
-                break
+                ints.append(h.distance(terminal_sec(0.5), nn(0.5)) / d_t_s)
+                i += 1
 
-        d_f_i_n = h.distance(terminal_sec(0.5), nn(0.5)) / d_t_s
-        self.save('pred_axon_first_internode_dist_norm', i, j, k, d_f_i_n)
+        self.save('pred_axon_first_internode_dist_norm', i, j, k, ints)
 
         # a_f_i_n = h.distance(apic_sec(0.5), apic_branch[-2](0.5)) / d_a_s
         # self.save('pred_apic_first_internode_dist_norm', i, j, k, a_f_i_n)

@@ -633,7 +633,7 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
                 ints.append(h.distance(terminal_sec(0.5), nn(0.5)) / d_t_s)
                 i += 1
 
-        self.save('pred_axon_first_internode_dist_norm', i, j, k, ints)
+        self.save('pred_axon_internode_dist_norm', i, j, k, ints)
 
         # a_f_i_n = h.distance(apic_sec(0.5), apic_branch[-2](0.5)) / d_a_s
         # self.save('pred_apic_first_internode_dist_norm', i, j, k, a_f_i_n)

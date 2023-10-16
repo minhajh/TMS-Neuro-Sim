@@ -468,15 +468,15 @@ class ThresholdGeometryRecorder(ThresholdCallback):
         es_save = f(np.linspace(0, 1, self.nx))
         self.save('apic_branch_es', i, j, k, es_save)
 
-        i = 0
+        ii = 0
         ints = []
         for s in axon_branch[1:]:
-            if i == self.nint:
+            if ii == self.nint:
                 break
             if s in cell.node or s in cell.axon:
                 nn = s
                 ints.append(h.distance(terminal_sec(0.5), nn(0.5)) / d_t_s)
-                i += 1
+                ii += 1
 
         self.save('axon_internode_dist_norm', i, j, k, ints)
 

@@ -516,8 +516,6 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
 
         self.selection_func = getattr(self, self._predictors[selection_method])
 
-        self.make_record('pred_dist_term_soma')
-        self.make_record('pred_dist_apic_soma')
         self.make_record('pred_axon_internode_dist_norm')
 
         if es == 'combined':
@@ -529,6 +527,16 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
         self.make_record('pred_distance_from_true_init')
         self.make_record('pred_initiate_ind')
         self.make_record('pred_n_axonnode')
+
+
+        self.make_record('pred_d_node')
+        self.make_record('pred_d_myel')
+        self.make_record('pred_d_soma')
+
+        self.make_record('pred_l_axon')
+        self.make_record('pred_l_apic')
+        self.make_record('pred_l_soma')
+
 
     def _combined(self, cell, intiate_ind, idx):
         i, j, k = idx
@@ -593,10 +601,19 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
         d_t_s = h.distance(terminal_sec(0.5), cell.soma[0](0.5))
         d_a_s = h.distance(apic_sec(0.5), cell.soma[0](0.5))
 
-        self.save('pred_dist_term_soma', i, j, k, d_t_s)
-        self.save('pred_dist_apic_soma', i, j, k, d_a_s)
+        self.save('pred_l_axon', i, j, k, d_t_s)
+        self.save('pred_l_apic', i, j, k, d_a_s)
+        self.save('pred_l_soma', i, j, k, cell.soma[0].L)
+
+        self.save('pred_d_node', i, j, k, terminal_sec.diam)
+        self.save('pred_d_soma', i, j, k, cell.soma[0].diam)
 
         axon_branch = get_branch_from_terminal(cell, terminal_sec)
+        for sec in axon_branch:
+            if sec in cell.myelin:
+                self.save('pred_d_myel', i, j, k, sec(0.5).diam)
+                break
+
         n_node =  len([sec for sec in axon_branch if sec in cell.node])
         self.save('pred_n_axonnode', i, j, k, n_node)
 

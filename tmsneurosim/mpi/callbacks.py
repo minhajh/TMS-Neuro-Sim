@@ -651,7 +651,8 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
                 i += 1
 
         print(ints)
-        self.save('pred_axon_internode_dist_norm', i, j, k, np.array(ints, dtype=np.float64))
+        self.save('pred_axon_internode_dist_norm', i, j, k,
+                  np.array(ints, dtype=np.float32), dtype=np.float32)
 
         # a_f_i_n = h.distance(apic_sec(0.5), apic_branch[-2](0.5)) / d_a_s
         # self.save('pred_apic_first_internode_dist_norm', i, j, k, a_f_i_n)

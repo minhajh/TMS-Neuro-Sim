@@ -470,12 +470,14 @@ class ThresholdGeometryRecorder(ThresholdCallback):
 
         ii = 0
         ints = []
+        dt = terminal_sec
         for s in axon_branch[1:]:
             if ii == self.nint:
                 break
             if s in cell.node or s in cell.axon:
                 nn = s
-                ints.append(h.distance(terminal_sec(0.5), nn(0.5)) / d_t_s)
+                ints.append(h.distance(dt(0.5), nn(0.5)) / d_t_s)
+                dt = nn
                 ii += 1
 
         self.save('axon_internode_dist_norm', i, j, k, ints)
@@ -642,12 +644,14 @@ class PredictedInitGeometryRecorder(ThresholdCallback):
 
         ii = 0
         ints = []
+        dt = terminal_sec
         for s in axon_branch[1:]:
             if ii == self.nint:
                 break
             if (s in cell.node) or (s in cell.axon):
                 nn = s
-                ints.append(h.distance(terminal_sec(0.5), nn(0.5)) / d_t_s)
+                ints.append(h.distance(dt(0.5), nn(0.5)) / d_t_s)
+                dt = nn
                 ii += 1
 
         self.save('pred_axon_internode_dist_norm', i, j, k, ints)
